@@ -6,7 +6,7 @@
 ; General
 
 Name "PTZ Auto-Tracker"
-OutFile "PTZ_AutoTracker_Setup.exe"
+OutFile "Trackmind_Setup.exe"
 InstallDir "$PROGRAMFILES64\PTZ Auto-Tracker"
 InstallDirRegKey HKLM "Software\PTZAutoTracker" "Install_Dir"
 RequestExecutionLevel admin
