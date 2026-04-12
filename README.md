@@ -177,29 +177,6 @@ python -c "import socket; s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); s.s
 
 ---
 
-## File Reference
-
-| File | Description |
-|------|-------------|
-| `autotrack.py` | Main application |
-| `START_TRACKER.bat` | Launch the app |
-| `INSTALL.bat` | Install Python dependencies |
-| `BUILD_EXE.bat` | Compile to standalone exe using PyInstaller |
-| `BUILD_INSTALLER.bat` | Wrap exe into Windows installer using NSIS |
-| `installer.nsi` | NSIS installer script |
-| `make_bmp.py` | Generates the installer welcome screen graphic |
-| `requirements.txt` | Python package list |
-| `list_devices.py` | Lists available video capture devices |
-| `debug_test.py` | Step-by-step diagnostic if app fails to start |
-| `DEBUG.bat` | Runs app with full error output visible |
-| `trackmind_logo.svg` | Full horizontal logo |
-| `trackmind_icon.svg` | Square icon with transparent background |
-| `trackmind_icon.ico` | Windows icon file |
-| `trackmind_installer.bmp` | NSIS installer welcome image (164×314) |
-| `context.txt` | Full technical documentation |
-
----
-
 ## Dependencies
 
 | Package | Version | Notes |
