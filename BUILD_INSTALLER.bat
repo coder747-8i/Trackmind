@@ -1,10 +1,10 @@
 @echo off
 echo ============================================
-echo  TrackMind — Build Installer
+echo  TrackMind - Build Installer
 echo ============================================
 echo.
 
-if not exist "dist\Trackmind" (
+if not exist "dist\Trackmind.exe" (
     echo ERROR: dist\Trackmind.exe not found.
     echo Run BUILD_EXE.bat first, then run this script.
     pause
@@ -28,7 +28,7 @@ if errorlevel 1 (
 echo.
 echo ============================================
 echo  INSTALLER COMPLETE
-echo  Output: Trackmind.exe
+echo  Output: Trackmind_Setup.exe
 echo ============================================
 echo.
 pause
