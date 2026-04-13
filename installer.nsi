@@ -15,7 +15,7 @@ SetCompressor /SOLID lzma
 ;--------------------------------
 ; Version info shown in installer
 
-VIProductVersion "1.0.0.0"
+VIProductVersion "1.0.0.1"
 VIAddVersionKey "ProductName"      "Trackmind"
 VIAddVersionKey "FileDescription"  "Trackmind Installer"
 VIAddVersionKey "FileVersion"      "1.0.0"
