@@ -5,10 +5,10 @@
 ;--------------------------------
 ; General
 
-Name "PTZ Auto-Tracker"
+Name "Trackmind"
 OutFile "Trackmind_Setup.exe"
-InstallDir "$PROGRAMFILES64\PTZ Auto-Tracker"
-InstallDirRegKey HKLM "Software\PTZAutoTracker" "Install_Dir"
+InstallDir "$PROGRAMFILES64\Trackmind"
+InstallDirRegKey HKLM "Software\Trackmind" "Install_Dir"
 RequestExecutionLevel admin
 SetCompressor /SOLID lzma
 
@@ -16,8 +16,8 @@ SetCompressor /SOLID lzma
 ; Version info shown in installer
 
 VIProductVersion "1.0.0.0"
-VIAddVersionKey "ProductName"      "PTZ Auto-Tracker"
-VIAddVersionKey "FileDescription"  "PTZ Auto-Tracker Installer"
+VIAddVersionKey "ProductName"      "Trackmind"
+VIAddVersionKey "FileDescription"  "Trackmind Installer"
 VIAddVersionKey "FileVersion"      "1.0.0"
 VIAddVersionKey "LegalCopyright"   "Open Source"
 
@@ -33,7 +33,7 @@ VIAddVersionKey "LegalCopyright"   "Open Source"
 !define MUI_WELCOMEFINISHPAGE_BITMAP "trackmind_installer.bmp"
 !define MUI_UNWELCOMEFINISHPAGE_BITMAP "trackmind_installer.bmp"
 !define MUI_WELCOMEPAGE_TITLE "TrackMind"
-!define MUI_WELCOMEPAGE_TEXT "This will install PTZ Auto-Tracker on your computer.$\r$\n$\r$\nAuto-tracking software for PTZOptics cameras using AI pose detection.$\r$\n$\r$\nClick Next to continue."
+!define MUI_WELCOMEPAGE_TEXT "This will install Trackmind on your computer.$\r$\n$\r$\nAuto-tracking software for PTZOptics cameras using AI pose detection.$\r$\n$\r$\nClick Next to continue."
 
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_DIRECTORY
@@ -60,40 +60,40 @@ Section "Install" SecMain
   File /nonfatal "README.md"
 
   ; Write install location to registry
-  WriteRegStr HKLM "Software\PTZAutoTracker" "Install_Dir" "$INSTDIR"
+  WriteRegStr HKLM "Software\Trackmind" "Install_Dir" "$INSTDIR"
 
   ; Write uninstaller registry keys
   WriteRegStr HKLM \
-    "Software\Microsoft\Windows\CurrentVersion\Uninstall\PTZAutoTracker" \
-    "DisplayName" "PTZ Auto-Tracker"
+    "Software\Microsoft\Windows\CurrentVersion\Uninstall\Trackmind" \
+    "DisplayName" "Trackmind"
   WriteRegStr HKLM \
-    "Software\Microsoft\Windows\CurrentVersion\Uninstall\PTZAutoTracker" \
+    "Software\Microsoft\Windows\CurrentVersion\Uninstall\Trackmind" \
     "UninstallString" '"$INSTDIR\Uninstall.exe"'
   WriteRegStr HKLM \
-    "Software\Microsoft\Windows\CurrentVersion\Uninstall\PTZAutoTracker" \
+    "Software\Microsoft\Windows\CurrentVersion\Uninstall\Trackmind" \
     "DisplayVersion" "1.0.0"
   WriteRegStr HKLM \
-    "Software\Microsoft\Windows\CurrentVersion\Uninstall\PTZAutoTracker" \
+    "Software\Microsoft\Windows\CurrentVersion\Uninstall\Trackmind" \
     "Publisher" "Open Source"
   WriteRegDWORD HKLM \
-    "Software\Microsoft\Windows\CurrentVersion\Uninstall\PTZAutoTracker" \
+    "Software\Microsoft\Windows\CurrentVersion\Uninstall\Trackmind" \
     "NoModify" 1
   WriteRegDWORD HKLM \
-    "Software\Microsoft\Windows\CurrentVersion\Uninstall\PTZAutoTracker" \
+    "Software\Microsoft\Windows\CurrentVersion\Uninstall\Trackmind" \
     "NoRepair" 1
 
   ; Create uninstaller
   WriteUninstaller "$INSTDIR\Uninstall.exe"
 
   ; Start Menu shortcut
-  CreateDirectory "$SMPROGRAMS\PTZ Auto-Tracker"
-  CreateShortcut "$SMPROGRAMS\PTZ Auto-Tracker\PTZ Auto-Tracker.lnk" \
+  CreateDirectory "$SMPROGRAMS\Trackmind"
+  CreateShortcut "$SMPROGRAMS\PTZ Auto-Tracker\Trackmind.lnk" \
     "$INSTDIR\Trackmind.exe"
-  CreateShortcut "$SMPROGRAMS\PTZ Auto-Tracker\Uninstall.lnk" \
+  CreateShortcut "$SMPROGRAMS\Trackmind\Uninstall.lnk" \
     "$INSTDIR\Uninstall.exe"
 
   ; Desktop shortcut
-  CreateShortcut "$DESKTOP\PTZ Auto-Tracker.lnk" "$INSTDIR\Trackmind.exe"
+  CreateShortcut "$DESKTOP\Trackmind.lnk" "$INSTDIR\Trackmind.exe"
 
 SectionEnd
 
@@ -112,15 +112,15 @@ Section "Uninstall"
   RMDir "$INSTDIR"
 
   ; Remove Start Menu shortcuts
-  Delete "$SMPROGRAMS\PTZ Auto-Tracker\PTZ Auto-Tracker.lnk"
-  Delete "$SMPROGRAMS\PTZ Auto-Tracker\Uninstall.lnk"
-  RMDir  "$SMPROGRAMS\PTZ Auto-Tracker"
+  Delete "$SMPROGRAMS\Trackmind\Trackmind.lnk"
+  Delete "$SMPROGRAMS\Trackmind\Uninstall.lnk"
+  RMDir  "$SMPROGRAMS\Trackmind"
 
   ; Remove Desktop shortcut
-  Delete "$DESKTOP\PTZ Auto-Tracker.lnk"
+  Delete "$DESKTOP\Trackmind.lnk"
 
   ; Remove registry keys
-  DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\PTZAutoTracker"
-  DeleteRegKey HKLM "Software\PTZAutoTracker"
+  DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Trackmind"
+  DeleteRegKey HKLM "Software\Trackmind"
 
 SectionEnd
