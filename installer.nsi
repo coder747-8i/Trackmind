@@ -1,4 +1,4 @@
-; PTZ Auto-Tracker — NSIS Installer Script
+; Trackmind — NSIS Installer Script
 ; Requires NSIS installed: https://nsis.sourceforge.io/Download
 ; Build the exe first with BUILD_EXE.bat, then compile this with NSIS.
 
