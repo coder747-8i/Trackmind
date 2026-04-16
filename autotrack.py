@@ -19,6 +19,10 @@ import sys
 import math
 import os
 import json
+import urllib.request
+import urllib.error
+import subprocess
+import tempfile
 import tkinter as tk
 from tkinter import ttk, messagebox
 
@@ -35,6 +39,9 @@ except ImportError:
 import numpy as np
 from PIL import Image, ImageTk  # pip install Pillow
 
+
+VERSION = "1.0.0.2"
+GITHUB_REPO = "coder747-8i/Trackmind"  # ← update this
 
 # ─────────────────────────────────────────────────────────────
 # Shared live settings (read by tracker thread, written by UI)
@@ -227,6 +234,119 @@ class ProfileManager:
 
 
 PROFILE_MANAGER = ProfileManager()
+
+
+# ─────────────────────────────────────────────────────────────
+# Auto-Updater
+# ─────────────────────────────────────────────────────────────
+
+class Updater:
+    """
+    Checks GitHub releases API for a newer version.
+    If found, downloads the installer and runs it silently.
+    """
+
+    def __init__(self, app):
+        self.app          = app
+        self._latest_ver  = None
+        self._install_url = None
+
+    def check_async(self):
+        """Run update check in background thread — never blocks UI."""
+        t = threading.Thread(target=self._check, daemon=True)
+        t.start()
+
+    def _check(self):
+        try:
+            url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
+            req = urllib.request.Request(url, headers={"User-Agent": "TrackMind"})
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                data = json.loads(resp.read().decode())
+
+            tag = data.get("tag_name", "").lstrip("v")
+            if not tag:
+                return
+
+            # Compare versions
+            def ver_tuple(v):
+                try:
+                    return tuple(int(x) for x in v.split("."))
+                except Exception:
+                    return (0,)
+
+            if ver_tuple(tag) <= ver_tuple(VERSION):
+                print(f"[UPDATE] Up to date (v{VERSION})")
+                return
+
+            # Find installer asset
+            assets = data.get("assets", [])
+            install_url = None
+            for asset in assets:
+                name = asset.get("name", "")
+                if name.lower().endswith(".exe") and "setup" in name.lower():
+                    install_url = asset.get("browser_download_url")
+                    break
+
+            if not install_url:
+                return
+
+            self._latest_ver  = tag
+            self._install_url = install_url
+            print(f"[UPDATE] New version available: v{tag}")
+
+            # Show popup on main thread
+            self.app.root.after(0, lambda: self._prompt(tag, install_url))
+
+        except Exception as e:
+            print(f"[UPDATE] Check failed: {e}")
+
+    def _prompt(self, tag, url):
+        from tkinter import messagebox
+        result = messagebox.askyesno(
+            "TrackMind Update Available",
+            f"Version {tag} is available (you have {VERSION}).\n\nClick Yes to download and install now.\nTrackMind will close and relaunch automatically.",
+            icon="info"
+        )
+        if result:
+            self._download_and_install(url)
+
+    def _download_and_install(self, url):
+        """Download installer to temp dir and run it."""
+        try:
+            # Show progress in status bar
+            self.app.status_var.set("⬇  DOWNLOADING UPDATE...")
+            self.app._status_lbl.configure(fg=self.app.AMBER)
+            self.app.root.update()
+
+            # Download to temp file
+            tmp = tempfile.NamedTemporaryFile(
+                suffix="_Trackmind_Setup.exe", delete=False)
+            tmp_path = tmp.name
+            tmp.close()
+
+            def reporthook(count, block_size, total_size):
+                if total_size > 0:
+                    pct = int(count * block_size * 100 / total_size)
+                    self.app.status_var.set(f"⬇  DOWNLOADING... {min(pct,100)}%")
+                    self.app.root.update()
+
+            urllib.request.urlretrieve(url, tmp_path, reporthook)
+
+            self.app.status_var.set("✓  INSTALLING...")
+            self.app.root.update()
+
+            # Run installer silently (/S = silent NSIS flag)
+            # /D sets install dir to current install location
+            subprocess.Popen([tmp_path, "/S"])
+
+            # Give installer a moment to start then close app
+            self.app.root.after(1500, self.app.on_close)
+
+        except Exception as e:
+            from tkinter import messagebox
+            messagebox.showerror("Update Failed",
+                                 f"Could not download update:\n{e}\n\nPlease download manually from GitHub.")
+            self.app.status_var.set("● PAUSED")
 
 
 # ─────────────────────────────────────────────────────────────
@@ -757,6 +877,9 @@ class App:
         self._update_preview()
         # Auto-connect on launch
         self.root.after(500, self._on_start)
+        # Check for updates in background
+        self._updater = Updater(self)
+        self.root.after(3000, self._updater.check_async)
 
     # ── UI Build ────────────────────────────────────────────
 
@@ -833,6 +956,16 @@ class App:
                                     bg=self.BG2, fg=self.FG_DIM,
                                     font=(self.FONT, 10, "bold"))
         self._status_lbl.pack(side=tk.RIGHT, padx=16)
+        update_btn = tk.Button(header, text="⬆",
+                               command=lambda: self._updater.check_async() if hasattr(self, '_updater') else None,
+                               bg=self.BG2, fg=self.FG_DIM,
+                               font=(self.FONT, 10),
+                               relief=tk.FLAT, cursor="hand2",
+                               activebackground=self.BG3,
+                               activeforeground=self.AMBER,
+                               padx=6)
+        update_btn.pack(side=tk.RIGHT, pady=8)
+        tip(update_btn, "Check for updates. Click to check now.")
         tk.Frame(self.root, bg=self.AMBER, height=2).pack(fill=tk.X)
 
         # ═══ Body ═════════════════════════════════════════════
