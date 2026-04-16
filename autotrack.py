@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-PTZOptics Auto-Tracker  —  with Control Panel UI
+Trackmind: Auto Tracker with Control Panel UI
 -------------------------------------------------
 Video source  : RTSP stream over camera LAN port
 Camera control: VISCA over IP (TCP 5678)
