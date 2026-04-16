@@ -18,6 +18,7 @@ import threading
 import sys
 import math
 import os
+import json
 import tkinter as tk
 from tkinter import ttk, messagebox
 
@@ -49,12 +50,12 @@ class Settings:
         self.home_preset  = 5
 
         # Pan / Tilt
-        self.pan_dead     = 0.10
-        self.pan_near     = 0.25
+        self.pan_dead     = 0.15
+        self.pan_near     = 0.30
         self.pan_slow     = 3
         self.pan_fast     = 7
-        self.tilt_dead    = 0.10
-        self.tilt_near    = 0.25
+        self.tilt_dead    = 0.15
+        self.tilt_near    = 0.30
         self.tilt_slow    = 2
         self.tilt_fast    = 5
 
@@ -75,7 +76,157 @@ class Settings:
         # Vertical offset: -5 to +5. Negative = aim higher, Positive = aim lower
         self.track_offset  = 0
 
+    # ── Persistence ─────────────────────────────────────────
+
+    @staticmethod
+    def _config_path():
+        """Store config next to the exe or script."""
+        if getattr(sys, 'frozen', False):
+            base = os.path.dirname(sys.executable)
+        else:
+            base = os.path.dirname(os.path.abspath(__file__))
+        return os.path.join(base, "trackmind_config.json")
+
+    def save(self):
+        data = {
+            "camera_ip":    self.camera_ip,
+            "rtsp_user":    self.rtsp_user,
+            "rtsp_pass":    self.rtsp_pass,
+            "rtsp_stream":  self.rtsp_stream,
+            "home_preset":  self.home_preset,
+            "pan_dead":     self.pan_dead,
+            "pan_slow":     self.pan_slow,
+            "pan_fast":     self.pan_fast,
+            "tilt_dead":    self.tilt_dead,
+            "tilt_slow":    self.tilt_slow,
+            "tilt_fast":    self.tilt_fast,
+            "zoom_enabled": self.zoom_enabled,
+            "zoom_target":  self.zoom_target,
+            "zoom_dead":    self.zoom_dead,
+            "zoom_speed":   self.zoom_speed,
+            "latency_comp": self.latency_comp,
+            "lost_timeout": self.lost_timeout,
+            "track_offset": self.track_offset,
+        }
+        try:
+            with open(self._config_path(), "w") as f:
+                json.dump(data, f, indent=2)
+            print(f"[CFG] Settings saved to {self._config_path()}")
+        except Exception as e:
+            print(f"[CFG] Could not save settings: {e}")
+
+    def load(self):
+        path = self._config_path()
+        if not os.path.exists(path):
+            return
+        try:
+            with open(path, "r") as f:
+                data = json.load(f)
+            for key, val in data.items():
+                if hasattr(self, key):
+                    setattr(self, key, val)
+            # Recompute derived values
+            self.pan_near  = self.pan_dead  + 0.15
+            self.tilt_near = self.tilt_dead + 0.15
+            print(f"[CFG] Settings loaded from {path}")
+        except Exception as e:
+            print(f"[CFG] Could not load settings: {e}")
+
+
 SETTINGS = Settings()
+SETTINGS.load()   # Load saved settings on startup
+
+
+# ─────────────────────────────────────────────────────────────
+# User Profiles
+# ─────────────────────────────────────────────────────────────
+
+class ProfileManager:
+    def __init__(self):
+        self.profiles      = {}   # name -> settings dict
+        self.current       = None
+        self._load()
+
+    @staticmethod
+    def _path():
+        if getattr(sys, 'frozen', False):
+            base = os.path.dirname(sys.executable)
+        else:
+            base = os.path.dirname(os.path.abspath(__file__))
+        return os.path.join(base, "trackmind_profiles.json")
+
+    def _settings_dict(self):
+        s = SETTINGS
+        return {
+            "camera_ip":    s.camera_ip,
+            "rtsp_user":    s.rtsp_user,
+            "rtsp_pass":    s.rtsp_pass,
+            "rtsp_stream":  s.rtsp_stream,
+            "home_preset":  s.home_preset,
+            "pan_dead":     s.pan_dead,
+            "pan_slow":     s.pan_slow,
+            "pan_fast":     s.pan_fast,
+            "tilt_dead":    s.tilt_dead,
+            "tilt_slow":    s.tilt_slow,
+            "tilt_fast":    s.tilt_fast,
+            "zoom_enabled": s.zoom_enabled,
+            "zoom_target":  s.zoom_target,
+            "zoom_dead":    s.zoom_dead,
+            "zoom_speed":   s.zoom_speed,
+            "latency_comp": s.latency_comp,
+            "lost_timeout": s.lost_timeout,
+            "track_offset": s.track_offset,
+        }
+
+    def save_profile(self, name):
+        self.profiles[name] = self._settings_dict()
+        self.current = name
+        self._persist()
+        print(f"[PROFILE] Saved profile: {name}")
+
+    def load_profile(self, name):
+        if name not in self.profiles:
+            return False
+        data = self.profiles[name]
+        for key, val in data.items():
+            if hasattr(SETTINGS, key):
+                setattr(SETTINGS, key, val)
+        SETTINGS.pan_near  = SETTINGS.pan_dead  + 0.15
+        SETTINGS.tilt_near = SETTINGS.tilt_dead + 0.15
+        self.current = name
+        print(f"[PROFILE] Loaded profile: {name}")
+        return True
+
+    def delete_profile(self, name):
+        if name in self.profiles:
+            del self.profiles[name]
+            if self.current == name:
+                self.current = None
+            self._persist()
+
+    def _persist(self):
+        try:
+            data = {"current": self.current, "profiles": self.profiles}
+            with open(self._path(), "w") as f:
+                json.dump(data, f, indent=2)
+        except Exception as e:
+            print(f"[PROFILE] Save failed: {e}")
+
+    def _load(self):
+        p = self._path()
+        if not os.path.exists(p):
+            return
+        try:
+            with open(p, "r") as f:
+                data = json.load(f)
+            self.profiles = data.get("profiles", {})
+            self.current  = data.get("current", None)
+            print(f"[PROFILE] Loaded {len(self.profiles)} profiles")
+        except Exception as e:
+            print(f"[PROFILE] Load failed: {e}")
+
+
+PROFILE_MANAGER = ProfileManager()
 
 
 # ─────────────────────────────────────────────────────────────
@@ -249,7 +400,7 @@ class PersonDetector:
         # Apply manual offset: each step = 5% of bbox height
         # negative offset = move aim point up (camera tilts up)
         # positive offset = move aim point down (camera tilts down)
-        cy += (offset / 5.0) * h * 0.5
+        cy += (offset / 7.0) * h * 0.7
         cy = max(0.0, min(1.0, cy))
 
         return cx, cy, x1 - x0, y1 - y0
@@ -602,6 +753,7 @@ class App:
             pass
 
         self._build_ui()
+        self._refresh_profile_dropdown()
         self._update_preview()
         # Auto-connect on launch
         self.root.after(500, self._on_start)
@@ -922,8 +1074,8 @@ class App:
         lbl_o = tk.Label(of, text="Vertical Offset", bg=self.BG2, fg=self.FG_DIM,
                          font=(self.FONT, 8), width=14, anchor="w")
         lbl_o.pack(side=tk.LEFT)
-        tip(lbl_o, "Fine-tune aim point up or down.\n-5 = aim higher (camera tilts up)\n+5 = aim lower (camera tilts down)\n0 = centered on selected focus")
-        offset_sb = tk.Spinbox(of, from_=-5, to=5, textvariable=self._offset_var,
+        tip(lbl_o, "Fine-tune aim point up or down.\n-7 = top of head\n+7 = feet\n0 = centered")
+        offset_sb = tk.Spinbox(of, from_=-7, to=7, textvariable=self._offset_var,
                                width=4, bg=self.BG3, fg=self.FG,
                                insertbackground=self.AMBER,
                                buttonbackground=self.BG3,
@@ -932,7 +1084,7 @@ class App:
                                highlightbackground=self.BORDER,
                                highlightcolor=self.AMBER)
         offset_sb.pack(side=tk.LEFT, padx=4)
-        tip(offset_sb, "Fine-tune aim point up or down.\n-5 = aim higher\n+5 = aim lower\n0 = centered")
+        tip(offset_sb, "Fine-tune aim point up or down.\n-7 = top of head\n+7 = feet\n0 = centered")
 
         self._pan_dead_v  = tk.DoubleVar(value=SETTINGS.pan_dead)
         self._tilt_dead_v = tk.DoubleVar(value=SETTINGS.tilt_dead)
@@ -990,33 +1142,97 @@ class App:
         # APPLY
         # ══════════════════════════════════════════════════════
         divider()
-        ab = tk.Button(p, text="APPLY  SETTINGS",
+        btn_row_as = tk.Frame(p, bg=self.BG2)
+        btn_row_as.pack(fill=tk.X, padx=10, pady=6)
+        ab = tk.Button(btn_row_as, text="APPLY  SETTINGS",
                        command=self._apply_settings,
                        bg=self.BG3, fg=self.AMBER,
                        font=(self.FONT, 9, "bold"),
                        relief=tk.FLAT, cursor="hand2",
                        activebackground=self.AMBER_DIM,
                        activeforeground=self.FG, pady=7)
-        ab.pack(fill=tk.X, padx=10, pady=6)
+        ab.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0,4))
         tip(ab, "Push all current settings to the live tracker. Takes effect on next frame.")
+        sb = tk.Button(btn_row_as, text="💾  SAVE",
+                       command=lambda: [self._apply_settings(), SETTINGS.save()],
+                       bg=self.BG3, fg=self.FG,
+                       font=(self.FONT, 9, "bold"),
+                       relief=tk.FLAT, cursor="hand2",
+                       activebackground=self.GREEN,
+                       activeforeground="#000", pady=7, padx=10)
+        sb.pack(side=tk.LEFT)
+        tip(sb, "Apply settings and save to disk immediately.")
 
         # ══════════════════════════════════════════════════════
-        # QUICK PRESETS
+        # PROFILES
         # ══════════════════════════════════════════════════════
-        section("QUICK  PRESETS")
-        pf = tk.Frame(p, bg=self.BG2)
-        pf.pack(fill=tk.X, padx=10, pady=8)
-        for i in range(1, 10):
-            btn = tk.Button(pf, text=str(i),
-                            bg=self.BG3, fg=self.FG,
-                            font=(self.FONT, 10, "bold"),
-                            width=2, relief=tk.FLAT, cursor="hand2",
-                            activebackground=self.AMBER,
-                            activeforeground="#000",
-                            command=lambda n=i: self._recall_preset(n),
-                            pady=5)
-            btn.pack(side=tk.LEFT, padx=2)
-            tip(btn, f"Recall camera preset {i}.")
+        section("PROFILES")
+
+        prof_row = tk.Frame(p, bg=self.BG2)
+        prof_row.pack(fill=tk.X, padx=10, pady=(4,2))
+
+        self._profile_var = tk.StringVar(value=PROFILE_MANAGER.current or "")
+        prof_names = list(PROFILE_MANAGER.profiles.keys())
+        self._profile_dd = tk.OptionMenu(prof_row, self._profile_var,
+                                         *prof_names if prof_names else [""])
+        self._profile_dd.configure(bg=self.BG3, fg=self.FG,
+                                   activebackground=self.AMBER,
+                                   activeforeground="#000",
+                                   highlightthickness=0,
+                                   relief=tk.FLAT,
+                                   font=(self.FONT, 9))
+        self._profile_dd["menu"].configure(bg=self.BG3, fg=self.FG,
+                                            activebackground=self.AMBER,
+                                            activeforeground="#000",
+                                            font=(self.FONT, 9))
+        self._profile_dd.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0,4))
+        tip(self._profile_dd, "Select a saved profile to load.")
+
+        load_prof_btn = tk.Button(prof_row, text="LOAD",
+                                  command=self._load_profile,
+                                  bg=self.BG3, fg=self.FG,
+                                  font=(self.FONT, 8, "bold"),
+                                  relief=tk.FLAT, cursor="hand2",
+                                  activebackground=self.AMBER,
+                                  activeforeground="#000",
+                                  padx=8, pady=5)
+        load_prof_btn.pack(side=tk.LEFT)
+        tip(load_prof_btn, "Load the selected profile.")
+
+        prof_row2 = tk.Frame(p, bg=self.BG2)
+        prof_row2.pack(fill=tk.X, padx=10, pady=(2,6))
+
+        self._new_profile_var = tk.StringVar()
+        new_prof_entry = tk.Entry(prof_row2, textvariable=self._new_profile_var,
+                                  width=14, bg=self.BG3, fg=self.FG,
+                                  insertbackground=self.AMBER,
+                                  relief=tk.FLAT, font=(self.FONT, 9),
+                                  highlightthickness=1,
+                                  highlightcolor=self.AMBER,
+                                  highlightbackground=self.BORDER)
+        new_prof_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0,4))
+        tip(new_prof_entry, "Type a profile name then click SAVE.")
+
+        save_prof_btn = tk.Button(prof_row2, text="SAVE",
+                                  command=self._save_profile,
+                                  bg=self.AMBER, fg="#000",
+                                  font=(self.FONT, 8, "bold"),
+                                  relief=tk.FLAT, cursor="hand2",
+                                  activebackground="#ffbe5c",
+                                  padx=8, pady=5)
+        save_prof_btn.pack(side=tk.LEFT, padx=(0,2))
+        tip(save_prof_btn, "Save current settings as a named profile.")
+
+        del_prof_btn = tk.Button(prof_row2, text="DEL",
+                                 command=self._delete_profile,
+                                 bg=self.BG3, fg=self.RED,
+                                 font=(self.FONT, 8, "bold"),
+                                 relief=tk.FLAT, cursor="hand2",
+                                 activebackground=self.RED,
+                                 activeforeground="white",
+                                 padx=8, pady=5)
+        del_prof_btn.pack(side=tk.LEFT)
+        tip(del_prof_btn, "Delete the selected profile.")
 
         # ══════════════════════════════════════════════════════
         # ADVANCED SETTINGS (collapsible)
@@ -1157,6 +1373,7 @@ class App:
                 self._last_url = new_url
                 self.root.after(800, self._on_start)
         self._last_url = f"rtsp://{SETTINGS.rtsp_user}:{SETTINGS.rtsp_pass}@{SETTINGS.camera_ip}/{SETTINGS.rtsp_stream}"
+        SETTINGS.save()
         print(f"[SETTINGS] Applied — IP:{SETTINGS.camera_ip}  "
               f"Pan slow:{SETTINGS.pan_slow} fast:{SETTINGS.pan_fast}  "
               f"Zoom:{'ON' if SETTINGS.zoom_enabled else 'OFF'} "
@@ -1255,7 +1472,63 @@ class App:
             self._fullscreen = False
             self.root.attributes("-fullscreen", False)
 
+    # ── Profiles ─────────────────────────────────────────────
+
+    def _refresh_profile_dropdown(self):
+        menu = self._profile_dd["menu"]
+        menu.delete(0, "end")
+        for name in PROFILE_MANAGER.profiles:
+            menu.add_command(label=name,
+                             command=lambda n=name: self._profile_var.set(n))
+        if not PROFILE_MANAGER.profiles:
+            menu.add_command(label="(no profiles)")
+
+    def _save_profile(self):
+        name = self._new_profile_var.get().strip()
+        if not name:
+            return
+        self._apply_settings()
+        PROFILE_MANAGER.save_profile(name)
+        self._new_profile_var.set("")
+        self._profile_var.set(name)
+        self._refresh_profile_dropdown()
+
+    def _load_profile(self):
+        name = self._profile_var.get()
+        if not name or name not in PROFILE_MANAGER.profiles:
+            return
+        PROFILE_MANAGER.load_profile(name)
+        # Refresh all UI vars from SETTINGS
+        self._ip_var.set(SETTINGS.camera_ip)
+        self._usr_var.set(SETTINGS.rtsp_user)
+        self._pass_var.set(SETTINGS.rtsp_pass)
+        self._str_var.set(SETTINGS.rtsp_stream)
+        self._pre_var.set(SETTINGS.home_preset)
+        self._pan_slow_v.set(SETTINGS.pan_slow)
+        self._pan_fast_v.set(SETTINGS.pan_fast)
+        self._tilt_slow_v.set(SETTINGS.tilt_slow)
+        self._tilt_fast_v.set(SETTINGS.tilt_fast)
+        self._pan_dead_v.set(SETTINGS.pan_dead)
+        self._tilt_dead_v.set(SETTINGS.tilt_dead)
+        self._zoom_en_v.set(SETTINGS.zoom_enabled)
+        self._zoom_tgt_v.set(int(SETTINGS.zoom_target * 100))
+        self._zoom_dead_v.set(int(SETTINGS.zoom_dead * 100))
+        self._zoom_spd_v.set(SETTINGS.zoom_speed)
+        self._lat_v.set(SETTINGS.latency_comp)
+        self._lost_v.set(SETTINGS.lost_timeout)
+        self._offset_var.set(SETTINGS.track_offset)
+        print(f"[PROFILE] UI refreshed for: {name}")
+
+    def _delete_profile(self):
+        name = self._profile_var.get()
+        if not name or name not in PROFILE_MANAGER.profiles:
+            return
+        PROFILE_MANAGER.delete_profile(name)
+        self._profile_var.set("")
+        self._refresh_profile_dropdown()
+
     def on_close(self):
+        SETTINGS.save()
         self._on_stop()
         time.sleep(0.3)
         self.root.destroy()
