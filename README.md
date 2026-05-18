@@ -93,7 +93,7 @@ While tracking is ON, click **LOCK** to lock onto the current subject. The camer
 |-------|-------------|
 | Pan Slow / Fast | Pan speed when slightly / far off-center (1–24) |
 | Tilt Slow / Fast | Tilt speed when slightly / far off-center (1–24) |
-| Vertical Offset | Fine-tune aim point. -5 = higher, +5 = lower, 0 = centered |
+| Vertical Offset | Fine-tune aim point. -7 = higher, +7 = lower, 0 = centered |
 
 **Zoom**
 
@@ -114,8 +114,8 @@ Click **⚙ Advanced Settings** to expand:
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| Pan Dead Zone | 0.10 | Fraction of frame where small pan offsets are ignored. Higher = less twitching near center |
-| Tilt Dead Zone | 0.10 | Same for tilt |
+| Pan Dead Zone | 0.15 | Fraction of frame where small pan offsets are ignored. Higher = less twitching near center |
+| Tilt Dead Zone | 0.15 | Same for tilt |
 | Latency Comp | 0.40 | Seconds of look-ahead to compensate for RTSP delay. Too high = oscillation |
 | Lost Timeout | 3.0 | Seconds before camera returns to home preset when subject is missing |
 
@@ -164,7 +164,7 @@ python -c "import socket; s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); s.s
 - Confirm VISCA over IP is enabled in the camera web UI
 
 **Tracking is jittery or oscillating**
-- Increase Pan/Tilt Dead Zone in Advanced Settings (try 0.15)
+- Increase Pan/Tilt Dead Zone in Advanced Settings (try 0.18 for Pan and 17 for Tilt)
 - Lower Pan Slow speed
 - Reduce Latency Comp (try 0.2)
 
