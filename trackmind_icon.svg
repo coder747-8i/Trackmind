@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400">
+<title>TrackMind Logo</title>
+<desc>TrackMind — Intelligent PTZ Auto-Tracking icon with transparent background</desc>
+
+<!-- No background rect — fully transparent -->
+
+<!-- Outer decorative ring -->
+<circle cx="200" cy="200" r="175" fill="none" stroke="#3a2e10" stroke-width="1" stroke-dasharray="6 4"/>
+<circle cx="200" cy="200" r="155" fill="none" stroke="#3a2e10" stroke-width="1"/>
+
+<!-- Lens body -->
+<circle cx="200" cy="200" r="134" fill="#1c1c27" stroke="#2a2a3a" stroke-width="2"/>
+<circle cx="200" cy="200" r="126" fill="#1c1c27" stroke="#1e1e2a" stroke-width="1.5"/>
+<circle cx="200" cy="200" r="110" fill="#16161f" stroke="#16161f" stroke-width="10"/>
+<circle cx="200" cy="200" r="100" fill="#13131a" stroke="#f5a623" stroke-width="1.5"/>
+
+<!-- Lens depth -->
+<circle cx="200" cy="200" r="78"  fill="#0d0d14" stroke="#1c1c27" stroke-width="1"/>
+<circle cx="200" cy="200" r="58"  fill="#080810" stroke="#1a1a24" stroke-width="1"/>
+
+<!-- Lens flare -->
+<ellipse cx="178" cy="178" rx="12" ry="7" fill="#f5a623" opacity="0.08" transform="rotate(-35 178 178)"/>
+<ellipse cx="174" cy="174" rx="5"  ry="3"  fill="#f5a623" opacity="0.15" transform="rotate(-35 174 174)"/>
+
+<!-- Crosshair reticle -->
+<line x1="200" y1="148" x2="200" y2="172" fill="none" stroke="#f5a623" stroke-width="2"/>
+<line x1="200" y1="228" x2="200" y2="252" fill="none" stroke="#f5a623" stroke-width="2"/>
+<line x1="148" y1="200" x2="172" y2="200" fill="none" stroke="#f5a623" stroke-width="2"/>
+<line x1="228" y1="200" x2="252" y2="200" fill="none" stroke="#f5a623" stroke-width="2"/>
+
+<!-- Inner corner brackets -->
+<polyline points="184,182 176,182 176,190" fill="none" stroke="#f5a623" stroke-width="2.5" stroke-linecap="square"/>
+<polyline points="216,182 224,182 224,190" fill="none" stroke="#f5a623" stroke-width="2.5" stroke-linecap="square"/>
+<polyline points="184,218 176,218 176,210" fill="none" stroke="#f5a623" stroke-width="2.5" stroke-linecap="square"/>
+<polyline points="216,218 224,218 224,210" fill="none" stroke="#f5a623" stroke-width="2.5" stroke-linecap="square"/>
+
+<!-- Centre dot -->
+<circle cx="200" cy="200" r="4"  fill="#f5a623"/>
+<circle cx="200" cy="200" r="9"  fill="none" stroke="#f5a623" stroke-width="1" opacity="0.4"/>
+
+<!-- Outer corner brackets -->
+<polyline points="72,72 50,72 50,94"   fill="none" stroke="#f5a623" stroke-width="2.5" stroke-linecap="square"/>
+<polyline points="328,72 350,72 350,94"  fill="none" stroke="#f5a623" stroke-width="2.5" stroke-linecap="square"/>
+<polyline points="72,328 50,328 50,306"  fill="none" stroke="#f5a623" stroke-width="2.5" stroke-linecap="square"/>
+<polyline points="328,328 350,328 350,306" fill="none" stroke="#f5a623" stroke-width="2.5" stroke-linecap="square"/>
+
+<!-- Scan lines -->
+<line x1="152" y1="188" x2="248" y2="188" fill="none" stroke="#f5a623" stroke-width="1" opacity="0.4"/>
+<line x1="146" y1="200" x2="254" y2="200" fill="none" stroke="#f5a623" stroke-width="1" opacity="0.2"/>
+<line x1="152" y1="212" x2="248" y2="212" fill="none" stroke="#f5a623" stroke-width="1" opacity="0.4"/>
+
+<!-- PTZ mount base -->
+<rect x="178" y="326" width="44" height="12" rx="2" fill="#1c1c27" stroke="#2a2a3a" stroke-width="1"/>
+<rect x="188" y="338" width="24" height="8"  rx="1" fill="#16161f" stroke="#2a2a3a" stroke-width="1"/>
+
+</svg>
