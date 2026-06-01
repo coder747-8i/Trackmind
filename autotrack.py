@@ -40,7 +40,15 @@ import numpy as np
 from PIL import Image, ImageTk  # pip install Pillow
 
 
-VERSION = "1.0.0.2"
+def _read_version():
+    base = sys._MEIPASS if getattr(sys, 'frozen', False) else os.path.dirname(os.path.abspath(__file__))
+    try:
+        with open(os.path.join(base, "version.txt")) as f:
+            return f.read().strip().lstrip("v")
+    except Exception:
+        return "unknown"
+
+VERSION = _read_version()
 GITHUB_REPO = "coder747-8i/Trackmind"  # ← update this
 
 # ─────────────────────────────────────────────────────────────
@@ -49,50 +57,53 @@ GITHUB_REPO = "coder747-8i/Trackmind"  # ← update this
 
 class Settings:
     def __init__(self):
-        self.camera_ip    = "192.168.1.10"
-        self.rtsp_user    = "admin"
-        self.rtsp_pass    = "admin"
+        self.camera_ip    = ""
+        self.rtsp_user    = ""
+        self.rtsp_pass    = ""
         self.rtsp_stream  = "2"
         self.visca_port   = 5678
-        self.home_preset  = 5
+        self.home_preset  = 0
 
-        # Pan / Tilt
-        self.pan_dead     = 0.15
-        self.pan_near     = 0.30
-        self.pan_slow     = 3
-        self.pan_fast     = 7
-        self.tilt_dead    = 0.15
-        self.tilt_near    = 0.30
+        self.pan_dead     = 0.17
+        self.pan_near     = 0.32
+        self.pan_slow     = 2
+        self.pan_fast     = 5
+        self.tilt_dead    = 0.17
+        self.tilt_near    = 0.32
         self.tilt_slow    = 2
         self.tilt_fast    = 5
 
-        # Zoom
-        self.zoom_enabled = True
+        self.zoom_enabled = False
         self.zoom_target  = 0.45
         self.zoom_dead    = 0.20
-        self.zoom_speed   = 1     # 0-7
+        self.zoom_speed   = 1
 
-        # Prediction
         self.latency_comp = 0.4
+        self.lost_timeout = 2.0
 
-        # Lost timeout
-        self.lost_timeout = 3.0
-
-        # Tracking focus: always upper body (nose, shoulders, elbows, hips)
-        self.track_focus   = 'upper'
-        # Vertical offset: -5 to +5. Negative = aim higher, Positive = aim lower
-        self.track_offset  = 0
+        self.track_focus  = 'upper'
+        self.track_offset = 2
 
     # ── Persistence ─────────────────────────────────────────
 
     @staticmethod
+    def _system_user():
+        return (os.environ.get('USERNAME') or os.environ.get('USER') or 'default').lower()
+
+    @staticmethod
+    def _config_dir():
+        base = os.path.expanduser("~/.trackmind")
+        user_dir = os.path.join(base, Settings._system_user())
+        os.makedirs(user_dir, exist_ok=True)
+        return user_dir
+
+    @staticmethod
     def _config_path():
-        """Store config next to the exe or script."""
-        if getattr(sys, 'frozen', False):
-            base = os.path.dirname(sys.executable)
-        else:
-            base = os.path.dirname(os.path.abspath(__file__))
-        return os.path.join(base, "trackmind_config.json")
+        return os.path.join(Settings._config_dir(), "config.json")
+
+    @staticmethod
+    def is_first_run():
+        return not os.path.exists(Settings._config_path())
 
     def save(self):
         data = {
@@ -139,6 +150,19 @@ class Settings:
         except Exception as e:
             print(f"[CFG] Could not load settings: {e}")
 
+    def to_dict(self):
+        return {
+            "camera_ip": self.camera_ip, "rtsp_user": self.rtsp_user,
+            "rtsp_pass": self.rtsp_pass, "rtsp_stream": self.rtsp_stream,
+            "home_preset": self.home_preset,
+            "pan_dead": self.pan_dead, "pan_slow": self.pan_slow, "pan_fast": self.pan_fast,
+            "tilt_dead": self.tilt_dead, "tilt_slow": self.tilt_slow, "tilt_fast": self.tilt_fast,
+            "zoom_enabled": self.zoom_enabled, "zoom_target": self.zoom_target,
+            "zoom_dead": self.zoom_dead, "zoom_speed": self.zoom_speed,
+            "latency_comp": self.latency_comp, "lost_timeout": self.lost_timeout,
+            "track_offset": self.track_offset,
+        }
+
 
 SETTINGS = Settings()
 SETTINGS.load()   # Load saved settings on startup
@@ -156,34 +180,13 @@ class ProfileManager:
 
     @staticmethod
     def _path():
-        if getattr(sys, 'frozen', False):
-            base = os.path.dirname(sys.executable)
-        else:
-            base = os.path.dirname(os.path.abspath(__file__))
-        return os.path.join(base, "trackmind_profiles.json")
+        return os.path.join(Settings._config_dir(), "profiles.json")
 
     def _settings_dict(self):
-        s = SETTINGS
-        return {
-            "camera_ip":    s.camera_ip,
-            "rtsp_user":    s.rtsp_user,
-            "rtsp_pass":    s.rtsp_pass,
-            "rtsp_stream":  s.rtsp_stream,
-            "home_preset":  s.home_preset,
-            "pan_dead":     s.pan_dead,
-            "pan_slow":     s.pan_slow,
-            "pan_fast":     s.pan_fast,
-            "tilt_dead":    s.tilt_dead,
-            "tilt_slow":    s.tilt_slow,
-            "tilt_fast":    s.tilt_fast,
-            "zoom_enabled": s.zoom_enabled,
-            "zoom_target":  s.zoom_target,
-            "zoom_dead":    s.zoom_dead,
-            "zoom_speed":   s.zoom_speed,
-            "latency_comp": s.latency_comp,
-            "lost_timeout": s.lost_timeout,
-            "track_offset": s.track_offset,
-        }
+        return SETTINGS.to_dict()
+
+    def list_profiles(self):
+        return list(self.profiles.keys())
 
     def save_profile(self, name):
         self.profiles[name] = self._settings_dict()
@@ -243,31 +246,41 @@ PROFILE_MANAGER = ProfileManager()
 class Updater:
     """
     Checks GitHub releases API for a newer version.
-    If found, downloads the installer and runs it silently.
+    Auto-check on launch is silent when up to date.
+    Manual check always gives feedback.
     """
 
-    def __init__(self, app):
-        self.app          = app
-        self._latest_ver  = None
-        self._install_url = None
+    RELEASES_URL = f"https://github.com/{GITHUB_REPO}/releases"
 
-    def check_async(self):
-        """Run update check in background thread — never blocks UI."""
-        t = threading.Thread(target=self._check, daemon=True)
+    def __init__(self, app):
+        self.app             = app
+        self._latest_ver     = None
+        self._install_url    = None
+        self._last_check_time = None
+
+    def check_async(self, manual=False):
+        """Run update check in a background thread — never blocks UI."""
+        if manual:
+            self.app.status_var.set("CHECKING...")
+            self.app._status_lbl.configure(fg=AMBER)
+        t = threading.Thread(target=self._check, args=(manual,), daemon=True)
         t.start()
 
-    def _check(self):
+    def _check(self, manual=False):
+        self._last_check_time = time.time()
+        self.app.root.after(0, self._update_check_time_label)
         try:
             url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
             req = urllib.request.Request(url, headers={"User-Agent": "TrackMind"})
-            with urllib.request.urlopen(req, timeout=5) as resp:
+            with urllib.request.urlopen(req, timeout=8) as resp:
                 data = json.loads(resp.read().decode())
 
             tag = data.get("tag_name", "").lstrip("v")
             if not tag:
+                if manual:
+                    self.app.root.after(0, lambda: self._notify_uptodate())
                 return
 
-            # Compare versions
             def ver_tuple(v):
                 try:
                     return tuple(int(x) for x in v.split("."))
@@ -276,77 +289,122 @@ class Updater:
 
             if ver_tuple(tag) <= ver_tuple(VERSION):
                 print(f"[UPDATE] Up to date (v{VERSION})")
+                if manual:
+                    self.app.root.after(0, lambda: self._notify_uptodate())
+                else:
+                    self.app.root.after(0, self._restore_status)
                 return
 
-            # Find installer asset
+            # Find installer .exe asset
             assets = data.get("assets", [])
             install_url = None
             for asset in assets:
-                name = asset.get("name", "")
-                if name.lower().endswith(".exe") and "setup" in name.lower():
+                aname = asset.get("name", "")
+                if aname.lower().endswith(".exe") and "setup" in aname.lower():
                     install_url = asset.get("browser_download_url")
                     break
-
-            if not install_url:
-                return
 
             self._latest_ver  = tag
             self._install_url = install_url
             print(f"[UPDATE] New version available: v{tag}")
-
-            # Show popup on main thread
             self.app.root.after(0, lambda: self._prompt(tag, install_url))
 
         except Exception as e:
             print(f"[UPDATE] Check failed: {e}")
+            if manual:
+                self.app.root.after(0, lambda: self._notify_error(str(e)))
+            else:
+                self.app.root.after(0, self._restore_status)
 
-    def _prompt(self, tag, url):
-        from tkinter import messagebox
-        result = messagebox.askyesno(
-            "TrackMind Update Available",
-            f"Version {tag} is available (you have {VERSION}).\n\nClick Yes to download and install now.\nTrackMind will close and relaunch automatically.",
-            icon="info"
+    def _update_check_time_label(self):
+        if hasattr(self.app, '_last_check_lbl') and self._last_check_time:
+            import datetime
+            t = datetime.datetime.fromtimestamp(self._last_check_time)
+            self.app._last_check_lbl.configure(
+                text=f"Last checked:  {t.strftime('%b %d  %I:%M %p')}")
+
+    def _restore_status(self):
+        """Reset status bar to current tracker state after a silent background check."""
+        try:
+            st = self.app._thread.status if self.app._thread else "STOPPED"
+        except Exception:
+            st = "STOPPED"
+        if st == "TRACKING":
+            self.app.status_var.set("TRACKING")
+            self.app._status_lbl.configure(fg=GREEN)
+        elif st == "PAUSED":
+            self.app.status_var.set("PAUSED")
+            self.app._status_lbl.configure(fg=AMBER)
+        else:
+            self.app.status_var.set("OFFLINE")
+            self.app._status_lbl.configure(fg=FG_DIM)
+
+    def _notify_uptodate(self):
+        self._restore_status()
+        messagebox.showinfo(
+            "TrackMind — Up to Date",
+            f"You are running the latest version (v{VERSION})."
         )
-        if result:
-            self._download_and_install(url)
+
+    def _notify_error(self, err):
+        self._restore_status()
+        messagebox.showwarning(
+            "TrackMind — Update Check Failed",
+            f"Could not reach GitHub to check for updates.\n\n{err}\n\n"
+            f"Check manually at:\n{self.RELEASES_URL}"
+        )
+
+    def _prompt(self, tag, install_url):
+        self._restore_status()
+        if install_url:
+            result = messagebox.askyesno(
+                "TrackMind — Update Available",
+                f"Version {tag} is available  (you have v{VERSION}).\n\n"
+                f"Click Yes to download and install now.\n"
+                f"TrackMind will close and relaunch automatically.",
+                icon="info"
+            )
+            if result:
+                self._download_and_install(install_url)
+        else:
+            messagebox.showinfo(
+                "TrackMind — Update Available",
+                f"Version {tag} is available  (you have v{VERSION}).\n\n"
+                f"No installer asset was found on this release.\n"
+                f"Download it manually from:\n{self.RELEASES_URL}"
+            )
 
     def _download_and_install(self, url):
-        """Download installer to temp dir and run it."""
         try:
-            # Show progress in status bar
-            self.app.status_var.set("⬇  DOWNLOADING UPDATE...")
-            self.app._status_lbl.configure(fg=self.app.AMBER)
+            self.app.status_var.set("DOWNLOADING UPDATE...")
+            self.app._status_lbl.configure(fg=AMBER)
             self.app.root.update()
 
-            # Download to temp file
-            tmp = tempfile.NamedTemporaryFile(
-                suffix="_Trackmind_Setup.exe", delete=False)
+            tmp = tempfile.NamedTemporaryFile(suffix="_Trackmind_Setup.exe", delete=False)
             tmp_path = tmp.name
             tmp.close()
 
             def reporthook(count, block_size, total_size):
                 if total_size > 0:
                     pct = int(count * block_size * 100 / total_size)
-                    self.app.status_var.set(f"⬇  DOWNLOADING... {min(pct,100)}%")
+                    self.app.status_var.set(f"DOWNLOADING... {min(pct, 100)}%")
                     self.app.root.update()
 
             urllib.request.urlretrieve(url, tmp_path, reporthook)
 
-            self.app.status_var.set("✓  INSTALLING...")
+            self.app.status_var.set("INSTALLING...")
             self.app.root.update()
 
-            # Run installer silently (/S = silent NSIS flag)
-            # /D sets install dir to current install location
             subprocess.Popen([tmp_path, "/S"])
-
-            # Give installer a moment to start then close app
             self.app.root.after(1500, self.app.on_close)
 
         except Exception as e:
-            from tkinter import messagebox
-            messagebox.showerror("Update Failed",
-                                 f"Could not download update:\n{e}\n\nPlease download manually from GitHub.")
-            self.app.status_var.set("● PAUSED")
+            messagebox.showerror(
+                "Update Failed",
+                f"Could not download update:\n{e}\n\n"
+                f"Download manually from:\n{self.RELEASES_URL}"
+            )
+            self._restore_status()
 
 
 # ─────────────────────────────────────────────────────────────
@@ -822,34 +880,238 @@ class TrackerThread(threading.Thread):
         print("[INFO] Tracker thread stopped")
 
 
+
 # ─────────────────────────────────────────────────────────────
 # Control Panel UI
 # ─────────────────────────────────────────────────────────────
 
+BG        = "#0c0c0f"
+BG2       = "#13131a"
+BG3       = "#1c1c27"
+BORDER    = "#2a2a3a"
+AMBER     = "#f5a623"
+AMBER_DIM = "#7a5210"
+RED       = "#e03c3c"
+GREEN     = "#2ecc71"
+FG        = "#d4d4d8"
+FG_DIM    = "#6b6b7a"
+FONT      = "Courier New"
+
+
+# ─────────────────────────────────────────────────────────────
+# Tooltip helper
+# ─────────────────────────────────────────────────────────────
+
+class Tooltip:
+    def __init__(self, widget, text):
+        self.tip  = None
+        self.text = text
+        widget.bind("<Enter>", self._show)
+        widget.bind("<Leave>", self._hide)
+
+    def _show(self, e=None):
+        w = e.widget if e else None
+        if w is None:
+            return
+        x = w.winfo_rootx() + 20
+        y = w.winfo_rooty() + w.winfo_height() + 4
+        self.tip = tk.Toplevel(w)
+        self.tip.wm_overrideredirect(True)
+        self.tip.wm_geometry(f"+{x}+{y}")
+        tk.Label(self.tip, text=self.text,
+                 bg="#1e1a0e", fg=AMBER,
+                 font=(FONT, 8),
+                 relief=tk.FLAT, padx=8, pady=4,
+                 wraplength=260, justify=tk.LEFT).pack()
+
+    def _hide(self, e=None):
+        if self.tip:
+            self.tip.destroy()
+            self.tip = None
+
+
+def tip(widget, text):
+    Tooltip(widget, text)
+
+
+# ─────────────────────────────────────────────────────────────
+# Setup Wizard
+# ─────────────────────────────────────────────────────────────
+
+class SetupWizard(tk.Toplevel):
+    STEPS = 6
+
+    def __init__(self, app):
+        super().__init__(app.root)
+        self.app = app
+        self.title("TrackMind — First Time Setup")
+        self.resizable(False, False)
+        self.geometry("500x400")
+        self.configure(bg=BG)
+        self.grab_set()
+
+        self._step     = 0
+        self._ip_var   = tk.StringVar(value=SETTINGS.camera_ip)
+        self._usr_var  = tk.StringVar(value=SETTINGS.rtsp_user  or "admin")
+        self._pass_var = tk.StringVar(value=SETTINGS.rtsp_pass  or "admin")
+        self._pre_var  = tk.IntVar(value=SETTINGS.home_preset)
+        self._dead_var = tk.DoubleVar(value=SETTINGS.pan_dead if SETTINGS.pan_dead else 0.17)
+
+        self._content   = tk.Frame(self, bg=BG)
+        self._content.pack(fill=tk.BOTH, expand=True, padx=30, pady=20)
+        self._nav_frame = tk.Frame(self, bg=BG)
+        self._nav_frame.pack(fill=tk.X, padx=30, pady=(0, 20))
+
+        self.update_idletasks()
+        px = app.root.winfo_x() + app.root.winfo_width()  // 2 - 250
+        py = app.root.winfo_y() + app.root.winfo_height() // 2 - 200
+        self.geometry(f"500x400+{px}+{py}")
+        self._draw_step()
+
+    def _clear(self):
+        for w in self._content.winfo_children():   w.destroy()
+        for w in self._nav_frame.winfo_children():  w.destroy()
+
+    def _step_hdr(self, n):
+        tk.Label(self._content, text=f"Step {n} of {self.STEPS - 1}",
+                 bg=BG, fg=FG_DIM, font=(FONT, 8)).pack(anchor="w")
+        tk.Frame(self._content, bg=AMBER, height=1).pack(fill=tk.X, pady=(2, 10))
+
+    def _title(self, t):
+        tk.Label(self._content, text=t, bg=BG, fg=AMBER,
+                 font=(FONT, 14, "bold"), wraplength=420, justify="left").pack(anchor="w", pady=(0, 4))
+
+    def _sub(self, t):
+        tk.Label(self._content, text=t, bg=BG, fg=FG_DIM,
+                 font=(FONT, 9), wraplength=420, justify="left").pack(anchor="w", pady=(0, 14))
+
+    def _entry(self, var, show=None):
+        kw = {"show": show} if show else {}
+        e = tk.Entry(self._content, textvariable=var, width=28,
+                     bg=BG3, fg=FG, insertbackground=AMBER,
+                     relief=tk.FLAT, font=(FONT, 10),
+                     highlightthickness=1, highlightcolor=AMBER,
+                     highlightbackground=BORDER, **kw)
+        e.pack(anchor="w", pady=4)
+        return e
+
+    def _spinbox(self, lo, hi, var, inc=1, fmt=None):
+        kw = {"format": fmt} if fmt else {}
+        sb = tk.Spinbox(self._content, from_=lo, to=hi, textvariable=var,
+                        increment=inc, width=10, bg=BG3, fg=FG,
+                        insertbackground=AMBER, buttonbackground=BG3,
+                        relief=tk.FLAT, font=(FONT, 12, "bold"),
+                        highlightthickness=1, highlightbackground=BORDER,
+                        highlightcolor=AMBER, **kw)
+        sb.pack(anchor="w", pady=4)
+        return sb
+
+    def _nav(self, show_back=True, next_text="Next →", next_cmd=None):
+        if show_back:
+            tk.Button(self._nav_frame, text="← Back", command=self._prev,
+                      bg=BG3, fg=FG_DIM, font=(FONT, 10, "bold"),
+                      relief=tk.FLAT, cursor="hand2",
+                      activebackground=BG3, activeforeground=FG,
+                      padx=14, pady=8).pack(side=tk.LEFT)
+        tk.Button(self._nav_frame, text=next_text,
+                  command=next_cmd or self._next,
+                  bg=AMBER, fg="#000", font=(FONT, 10, "bold"),
+                  relief=tk.FLAT, cursor="hand2",
+                  activebackground="#ffbe5c",
+                  padx=14, pady=8).pack(side=tk.RIGHT)
+
+    def _draw_step(self):
+        self._clear()
+        s = self._step
+        if s == 0:
+            tk.Label(self._content, text="", bg=BG).pack(pady=20)
+            tk.Label(self._content, text="Welcome to TrackMind",
+                     bg=BG, fg=AMBER, font=(FONT, 18, "bold")).pack()
+            tk.Label(self._content, text="Let's get your camera connected.",
+                     bg=BG, fg=FG_DIM, font=(FONT, 10)).pack(pady=8)
+            self._nav(show_back=False, next_text="Begin →")
+        elif s == 1:
+            self._step_hdr(1)
+            self._title("What is your camera's IP address?")
+            self._sub("Find this in your camera's web interface or router.\nExample: 192.168.1.10")
+            tk.Label(self._content, text="IP Address:", bg=BG, fg=FG, font=(FONT, 9)).pack(anchor="w")
+            self._entry(self._ip_var)
+            self._nav()
+        elif s == 2:
+            self._step_hdr(2)
+            self._title("Camera login credentials")
+            self._sub("Username and password for RTSP/VISCA access.\nDefault is usually admin / admin.")
+            tk.Label(self._content, text="Username:", bg=BG, fg=FG, font=(FONT, 9)).pack(anchor="w")
+            self._entry(self._usr_var)
+            tk.Label(self._content, text="Password:", bg=BG, fg=FG, font=(FONT, 9)).pack(anchor="w")
+            self._entry(self._pass_var, show="*")
+            self._nav()
+        elif s == 3:
+            self._step_hdr(3)
+            self._title("Home position preset")
+            self._sub("When tracking is lost, the camera returns to this preset.\nSet 0 if you haven't configured presets.")
+            tk.Label(self._content, text="Home Preset (0–89):", bg=BG, fg=FG, font=(FONT, 9)).pack(anchor="w")
+            self._spinbox(0, 89, self._pre_var)
+            self._nav()
+        elif s == 4:
+            self._step_hdr(4)
+            self._title("Tracking sensitivity")
+            self._sub("The dead zone is how much the subject can drift before the camera follows.\nLarger = steadier. 0.17 recommended.")
+            tk.Label(self._content, text="Dead Zone (0.05–0.30):", bg=BG, fg=FG, font=(FONT, 9)).pack(anchor="w")
+            self._spinbox(0.05, 0.30, self._dead_var, inc=0.01, fmt="%.2f")
+            self._nav()
+        elif s == 5:
+            tk.Label(self._content, text="", bg=BG).pack(pady=10)
+            tk.Label(self._content, text="You're all set!",
+                     bg=BG, fg=GREEN, font=(FONT, 18, "bold")).pack()
+            tk.Label(self._content, text="Click Finish to start TrackMind.",
+                     bg=BG, fg=FG_DIM, font=(FONT, 10)).pack(pady=8)
+            self._nav(next_text="Finish", next_cmd=self._finish)
+
+    def _next(self):
+        if self._step < self.STEPS - 1:
+            self._step += 1
+            self._draw_step()
+
+    def _prev(self):
+        if self._step > 0:
+            self._step -= 1
+            self._draw_step()
+
+    def _finish(self):
+        SETTINGS.camera_ip   = self._ip_var.get().strip()
+        SETTINGS.rtsp_user   = self._usr_var.get().strip()
+        SETTINGS.rtsp_pass   = self._pass_var.get().strip()
+        SETTINGS.home_preset = self._pre_var.get()
+        dead = self._dead_var.get()
+        SETTINGS.pan_dead  = dead;  SETTINGS.tilt_dead  = dead
+        SETTINGS.pan_near  = dead + 0.15; SETTINGS.tilt_near = dead + 0.15
+        SETTINGS.save()
+        self.app._refresh_ui_from_settings()
+        self.grab_release()
+        self.destroy()
+
+
+# ─────────────────────────────────────────────────────────────
+# Main App
+# ─────────────────────────────────────────────────────────────
+
 class App:
-    PANEL_W   = 300
+    PANEL_W   = 200
     PREVIEW_W = 720
     PREVIEW_H = 405
 
-    # ── Palette ──
-    BG        = "#0c0c0f"
-    BG2       = "#13131a"
-    BG3       = "#1c1c27"
-    BORDER    = "#2a2a3a"
-    AMBER     = "#f5a623"
-    AMBER_DIM = "#7a5210"
-    RED       = "#e03c3c"
-    GREEN     = "#2ecc71"
-    FG        = "#d4d4d8"
-    FG_DIM    = "#6b6b7a"
-    FONT      = "Courier New"
+    BG = BG; BG2 = BG2; BG3 = BG3; BORDER = BORDER
+    AMBER = AMBER; AMBER_DIM = AMBER_DIM; RED = RED; GREEN = GREEN
+    FG = FG; FG_DIM = FG_DIM; FONT = FONT
 
     def __init__(self, root):
         self.root = root
         self.root.title("TrackMind — Intelligent PTZ Auto-Tracking")
         self.root.resizable(True, True)
-        self.root.configure(bg=self.BG)
-        self._fullscreen = False
+        self.root.configure(bg=BG)
+        self._fullscreen       = False
+        self._settings_visible = False
         self.root.bind("<F11>", self._toggle_fullscreen)
         self.root.bind("<Escape>", self._exit_fullscreen)
 
@@ -858,14 +1120,8 @@ class App:
         self.tracker  = None
         self._thread  = None
 
-        # Set window icon — works both as .py script and compiled .exe
         try:
-            import sys, os
-            if getattr(sys, 'frozen', False):
-                # Running as PyInstaller exe — files are in sys._MEIPASS
-                base = sys._MEIPASS
-            else:
-                base = os.path.dirname(os.path.abspath(__file__))
+            base = sys._MEIPASS if getattr(sys, 'frozen', False) else os.path.dirname(os.path.abspath(__file__))
             icon_path = os.path.join(base, "trackmind_icon.ico")
             if os.path.exists(icon_path):
                 self.root.iconbitmap(icon_path)
@@ -873,747 +1129,581 @@ class App:
             pass
 
         self._build_ui()
-        self._refresh_profile_dropdown()
         self._update_preview()
-        # Auto-connect on launch
         self.root.after(500, self._on_start)
-        # Check for updates in background
         self._updater = Updater(self)
         self.root.after(3000, self._updater.check_async)
+        if SETTINGS.is_first_run():
+            self.root.after(200, self._run_setup_wizard)
 
-    # ── UI Build ────────────────────────────────────────────
+    # ── Logo ─────────────────────────────────────────────────
+
+    def _draw_logo(self, c, size=28):
+        cx = cy = size // 2
+        r  = cx - 2
+        r2 = int(r * 0.71)
+        c.create_oval(cx-r, cy-r, cx+r, cy+r, outline=AMBER, width=1)
+        c.create_oval(cx-r2, cy-r2, cx+r2, cy+r2, outline=AMBER, fill="#08080f", width=1)
+        gap = 3
+        for x1,y1,x2,y2 in [(cx,cy-r,cx,cy-gap),(cx,cy+gap,cx,cy+r),
+                              (cx-r,cy,cx-gap,cy),(cx+gap,cy,cx+r,cy)]:
+            c.create_line(x1,y1,x2,y2, fill=AMBER, width=1)
+        arm = max(4, size // 7)
+        for bx,by,dx,dy in [(cx-r2,cy-r2,-1,-1),(cx+r2,cy-r2,1,-1),
+                              (cx-r2,cy+r2,-1,1),(cx+r2,cy+r2,1,1)]:
+            c.create_line(bx,by,bx+dx*arm,by, fill=AMBER, width=1)
+            c.create_line(bx,by,bx,by+dy*arm, fill=AMBER, width=1)
+        dot = max(2, size // 14)
+        c.create_oval(cx-dot,cy-dot,cx+dot,cy+dot, fill=AMBER, outline="")
+
+    # ── Build UI ─────────────────────────────────────────────
 
     def _build_ui(self):
 
-        # ── Tooltip helper ──────────────────────────────────
-        class Tooltip:
-            def __init__(self, widget, text):
-                self.tip = None
-                self.text = text
-                widget.bind("<Enter>", self._show)
-                widget.bind("<Leave>", self._hide)
-            def _show(self, e=None):
-                w = e.widget if e else None
-                if w is None: return
-                x = w.winfo_rootx() + 20
-                y = w.winfo_rooty() + w.winfo_height() + 4
-                self.tip = tk.Toplevel(w)
-                self.tip.wm_overrideredirect(True)
-                self.tip.wm_geometry(f"+{x}+{y}")
-                tk.Label(self.tip, text=self.text,
-                         bg="#1e1a0e", fg="#f5a623",
-                         font=("Courier New", 8),
-                         relief=tk.FLAT, padx=8, pady=4,
-                         wraplength=230, justify=tk.LEFT).pack()
-            def _hide(self, e=None):
-                if self.tip:
-                    self.tip.destroy()
-                    self.tip = None
+        # ── Initialise all shared Vars before any panel is built ──
+        self._ip_var       = tk.StringVar(value=SETTINGS.camera_ip)
+        self._usr_var      = tk.StringVar(value=SETTINGS.rtsp_user)
+        self._pass_var     = tk.StringVar(value=SETTINGS.rtsp_pass)
+        self._str_var      = tk.StringVar(value=SETTINGS.rtsp_stream)
+        self._pre_var      = tk.IntVar(value=SETTINGS.home_preset)
+        self._offset_v     = tk.IntVar(value=SETTINGS.track_offset)
+        self._pan_dead_v   = tk.DoubleVar(value=SETTINGS.pan_dead)
+        self._pan_slow_v   = tk.IntVar(value=SETTINGS.pan_slow)
+        self._pan_fast_v   = tk.IntVar(value=SETTINGS.pan_fast)
+        self._tilt_dead_v  = tk.DoubleVar(value=SETTINGS.tilt_dead)
+        self._tilt_slow_v  = tk.IntVar(value=SETTINGS.tilt_slow)
+        self._tilt_fast_v  = tk.IntVar(value=SETTINGS.tilt_fast)
+        self._zoom_en_v    = tk.BooleanVar(value=SETTINGS.zoom_enabled)
+        self._zoom_tgt_v   = tk.IntVar(value=int(SETTINGS.zoom_target * 100))
+        self._zoom_dead_v  = tk.IntVar(value=int(SETTINGS.zoom_dead  * 100))
+        self._zoom_spd_v   = tk.IntVar(value=SETTINGS.zoom_speed)
+        self._lat_v        = tk.DoubleVar(value=SETTINGS.latency_comp)
+        self._lost_v       = tk.DoubleVar(value=SETTINGS.lost_timeout)
+        self._profile_var     = tk.StringVar(value=PROFILE_MANAGER.current or "")
+        self._new_profile_var = tk.StringVar()
 
-        def tip(widget, text):
-            Tooltip(widget, text)
-
-        # ═══ Header ═══════════════════════════════════════════
-        header = tk.Frame(self.root, bg=self.BG2, height=48)
+        # ═══ Header bar ══════════════════════════════════════
+        header = tk.Frame(self.root, bg=BG2, height=48)
         header.pack(fill=tk.X)
         header.pack_propagate(False)
-        # Logo canvas — mini version of the TrackMind lens icon
-        logo_c = tk.Canvas(header, width=36, height=36,
-                           bg=self.BG2, highlightthickness=0)
-        logo_c.pack(side=tk.LEFT, padx=(16, 6), pady=6)
 
-        def draw_logo(c):
-            cx, cy, r = 18, 18, 14
-            # Outer ring
-            c.create_oval(cx-r, cy-r, cx+r, cy+r,
-                          outline=self.AMBER, width=1)
-            # Lens glass
-            c.create_oval(cx-10, cy-10, cx+10, cy+10,
-                          outline=self.AMBER, fill="#08080f", width=1)
-            # Crosshair
-            for x1,y1,x2,y2 in [(cx,cy-14,cx,cy-4),(cx,cy+4,cx,cy+14),
-                                  (cx-14,cy,cx-4,cy),(cx+4,cy,cx+14,cy)]:
-                c.create_line(x1,y1,x2,y2, fill=self.AMBER, width=1)
-            # Corner brackets
-            for bx,by,dx,dy in [(cx-10,cy-10,-1,-1),(cx+10,cy-10,1,-1),
-                                  (cx-10,cy+10,-1,1),(cx+10,cy+10,1,1)]:
-                c.create_line(bx,by, bx+dx*5,by, fill=self.AMBER, width=1)
-                c.create_line(bx,by, bx,by+dy*5, fill=self.AMBER, width=1)
-            # Centre dot
-            c.create_oval(cx-2,cy-2,cx+2,cy+2, fill=self.AMBER, outline="")
+        logo_c = tk.Canvas(header, width=28, height=28, bg=BG2, highlightthickness=0)
+        logo_c.pack(side=tk.LEFT, padx=(12, 4), pady=10)
+        self._draw_logo(logo_c, size=28)
 
-        draw_logo(logo_c)
-
-        tk.Label(header, text="TRACKMIND",
-                 bg=self.BG2, fg=self.AMBER,
-                 font=(self.FONT, 13, "bold")).pack(side=tk.LEFT, padx=(0, 4), pady=8)
-        tk.Label(header, text="intelligent ptz auto-tracking",
-                 bg=self.BG2, fg=self.FG_DIM,
-                 font=(self.FONT, 8)).pack(side=tk.LEFT, padx=4)
+        tk.Label(header, text="TRACKMIND", bg=BG2, fg=AMBER,
+                 font=(FONT, 12, "bold")).pack(side=tk.LEFT, padx=(0, 4), pady=8)
+        tk.Label(header, text="intelligent ptz auto-tracking", bg=BG2, fg=FG_DIM,
+                 font=(FONT, 8)).pack(side=tk.LEFT, padx=4)
 
         self.status_var  = tk.StringVar(value="OFFLINE")
         self._status_lbl = tk.Label(header, textvariable=self.status_var,
-                                    bg=self.BG2, fg=self.FG_DIM,
-                                    font=(self.FONT, 10, "bold"))
-        self._status_lbl.pack(side=tk.RIGHT, padx=16)
-        update_btn = tk.Button(header, text="⬆",
-                               command=lambda: self._updater.check_async() if hasattr(self, '_updater') else None,
-                               bg=self.BG2, fg=self.FG_DIM,
-                               font=(self.FONT, 10),
-                               relief=tk.FLAT, cursor="hand2",
-                               activebackground=self.BG3,
-                               activeforeground=self.AMBER,
-                               padx=6)
-        update_btn.pack(side=tk.RIGHT, pady=8)
-        tip(update_btn, "Check for updates. Click to check now.")
-        tk.Frame(self.root, bg=self.AMBER, height=2).pack(fill=tk.X)
+                                    bg=BG2, fg=FG_DIM, font=(FONT, 10, "bold"))
 
-        # ═══ Body ═════════════════════════════════════════════
-        body = tk.Frame(self.root, bg=self.BG)
+        # Settings gear button — top-right, rightmost in header
+        self._settings_btn = tk.Button(header, text="⚙  SETTINGS",
+                                       command=self._toggle_settings,
+                                       bg=BG2, fg=FG_DIM,
+                                       font=(FONT, 9, "bold"),
+                                       relief=tk.FLAT, cursor="hand2",
+                                       activebackground=AMBER_DIM,
+                                       activeforeground=FG,
+                                       padx=10, pady=6)
+        self._settings_btn.pack(side=tk.RIGHT, padx=(0, 8))
+        tip(self._settings_btn, "Open settings panel.")
+        self._status_lbl.pack(side=tk.RIGHT, padx=(0, 16))
+
+        tk.Frame(self.root, bg=AMBER, height=2).pack(fill=tk.X)
+
+        # ═══ Body ════════════════════════════════════════════
+        body = tk.Frame(self.root, bg=BG)
         body.pack(fill=tk.BOTH, expand=True)
 
-        left = tk.Frame(body, bg=self.BG2, width=self.PANEL_W)
+        # ── Left panel (fixed, no scroll) ─────────────────
+        left = tk.Frame(body, bg=BG2, width=self.PANEL_W)
         left.pack(side=tk.LEFT, fill=tk.Y)
         left.pack_propagate(False)
-        tk.Frame(body, bg=self.BORDER, width=1).pack(side=tk.LEFT, fill=tk.Y)
+        tk.Frame(body, bg=BORDER, width=1).pack(side=tk.LEFT, fill=tk.Y)
 
-        right = tk.Frame(body, bg=self.BG)
-        right.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        # ── Right area (camera view OR settings view) ──────
+        self._right = tk.Frame(body, bg=BG)
+        self._right.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-        self._preview_wrap = tk.Frame(right, bg=self.BG, padx=16, pady=16)
-        self._preview_wrap.pack(fill=tk.BOTH, expand=True)
-        cb = tk.Frame(self._preview_wrap, bg=self.BORDER, padx=1, pady=1)
-        cb.pack(fill=tk.BOTH, expand=True)
+        # Camera frame
+        self._camera_frame = tk.Frame(self._right, bg=BG)
+        self._camera_frame.pack(fill=tk.BOTH, expand=True)
+        cb = tk.Frame(self._camera_frame, bg=BORDER, padx=1, pady=1)
+        cb.pack(fill=tk.BOTH, expand=True, padx=16, pady=16)
         self.canvas = tk.Canvas(cb, bg="#050508", highlightthickness=0)
         self.canvas.pack(fill=tk.BOTH, expand=True)
         self.canvas.create_text(self.PREVIEW_W//2, self.PREVIEW_H//2,
                                 text="NO SIGNAL", fill="#2a2a3a",
-                                font=(self.FONT, 28, "bold"), tags="nosignal")
+                                font=(FONT, 28, "bold"), tags="nosignal")
 
-        # ── Scrollable panel ──
-        sc = tk.Canvas(left, bg=self.BG2, highlightthickness=0, width=self.PANEL_W)
-        vsb = tk.Scrollbar(left, orient="vertical", command=sc.yview,
-                           bg=self.BG2, troughcolor=self.BG3,
-                           activebackground=self.AMBER_DIM)
-        self.inner = tk.Frame(sc, bg=self.BG2)
-        self.inner.bind("<Configure>",
-                        lambda e: sc.configure(scrollregion=sc.bbox("all")))
-        sc.create_window((0,0), window=self.inner, anchor="nw")
-        sc.configure(yscrollcommand=vsb.set)
-        sc.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        vsb.pack(side=tk.RIGHT, fill=tk.Y)
-        sc.bind_all("<MouseWheel>",
-                    lambda e: sc.yview_scroll(int(-1*(e.delta/120)), "units"))
+        # Settings frame — overlay placed on top of camera via place()
+        self._settings_frame = tk.Frame(self._right, bg=BG2,
+                                        highlightthickness=2,
+                                        highlightbackground=AMBER)
+        self._build_settings_panel(self._settings_frame)
+        # shown on demand with place(); camera always remains beneath
 
-        p = self.inner
+        # ── Build left panel contents ─────────────────────
+        p = left
 
-        # ── Widget helpers ──────────────────────────────────
+        # ── Status dot ────────────────────────────────────
+        top_row = tk.Frame(p, bg=BG2)
+        top_row.pack(fill=tk.X, padx=6, pady=(8, 4))
 
-        def divider():
-            tk.Frame(p, bg=self.BORDER, height=1).pack(fill=tk.X, pady=4)
+        self._panel_status_lbl = tk.Label(top_row, text="● OFFLINE",
+                                          bg=BG2, fg=FG_DIM,
+                                          font=(FONT, 8, "bold"))
+        self._panel_status_lbl.pack(side=tk.LEFT)
 
-        def section(text):
-            tk.Label(p, text=f"  {text}",
-                     bg=self.BG3, fg=self.AMBER,
-                     font=(self.FONT, 8, "bold"),
-                     anchor="w", pady=5).pack(fill=tk.X, pady=(10,0))
-            tk.Frame(p, bg=self.AMBER, height=1).pack(fill=tk.X)
+        tk.Frame(p, bg=AMBER, height=1).pack(fill=tk.X)
 
-        def mk_spin(parent, lo, hi, var, inc=1, w=4, tooltip=""):
-            sb = tk.Spinbox(parent, from_=lo, to=hi, textvariable=var,
-                            increment=inc, width=w,
-                            bg=self.BG3, fg=self.FG,
-                            insertbackground=self.AMBER,
-                            buttonbackground=self.BG3,
-                            relief=tk.FLAT, font=(self.FONT, 10, "bold"),
-                            highlightthickness=1,
-                            highlightbackground=self.BORDER,
-                            highlightcolor=self.AMBER)
-            if tooltip: tip(sb, tooltip)
-            return sb
+        # ── Camera connection fields ───────────────────────
 
-        def lspin(label, lo, hi, var, inc=1, w=4, tooltip=""):
-            f = tk.Frame(p, bg=self.BG2)
-            f.pack(fill=tk.X, padx=10, pady=2)
-            lbl = tk.Label(f, text=label, bg=self.BG2, fg=self.FG_DIM,
-                           font=(self.FONT, 8), width=14, anchor="w")
-            lbl.pack(side=tk.LEFT)
-            if tooltip: tip(lbl, tooltip)
-            sb = mk_spin(f, lo, hi, var, inc=inc, w=w, tooltip=tooltip)
-            sb.pack(side=tk.LEFT, padx=4)
-            return sb
-
-        def lentry(label, var, show=None, tooltip=""):
-            f = tk.Frame(p, bg=self.BG2)
-            f.pack(fill=tk.X, padx=10, pady=2)
-            lbl = tk.Label(f, text=label, bg=self.BG2, fg=self.FG_DIM,
-                           font=(self.FONT, 8), width=14, anchor="w")
-            lbl.pack(side=tk.LEFT)
-            if tooltip: tip(lbl, tooltip)
+        def stacked(label_text, var, show=None, tooltip_text=""):
+            f = tk.Frame(p, bg=BG2)
+            f.pack(fill=tk.X, padx=8, pady=(4, 0))
+            lbl = tk.Label(f, text=label_text, bg=BG2, fg=FG_DIM,
+                           font=(FONT, 7), anchor="w")
+            lbl.pack(fill=tk.X)
+            if tooltip_text: tip(lbl, tooltip_text)
             kw = {"show": show} if show else {}
-            e = tk.Entry(f, textvariable=var, width=14,
-                         bg=self.BG3, fg=self.FG,
-                         insertbackground=self.AMBER,
-                         relief=tk.FLAT, font=(self.FONT, 9),
-                         highlightthickness=1,
-                         highlightcolor=self.AMBER,
-                         highlightbackground=self.BORDER, **kw)
-            if tooltip: tip(e, tooltip)
-            e.pack(side=tk.LEFT, fill=tk.X, expand=True)
+            e = tk.Entry(f, textvariable=var, bg=BG3, fg=FG,
+                         insertbackground=AMBER, relief=tk.FLAT,
+                         font=(FONT, 9), highlightthickness=1,
+                         highlightcolor=AMBER, highlightbackground=BORDER, **kw)
+            e.pack(fill=tk.X)
+            if tooltip_text: tip(e, tooltip_text)
             return e
 
-        def pair_spins(lbl_l, lbl_r, lo, hi, var_l, var_r, tl="", tr=""):
-            f = tk.Frame(p, bg=self.BG2)
-            f.pack(fill=tk.X, padx=10, pady=2)
-            ll = tk.Label(f, text=lbl_l, bg=self.BG2, fg=self.FG_DIM,
-                          font=(self.FONT, 8), width=9, anchor="w")
-            ll.pack(side=tk.LEFT)
-            if tl: tip(ll, tl)
-            sl = mk_spin(f, lo, hi, var_l, w=3, tooltip=tl)
-            sl.pack(side=tk.LEFT, padx=(2,8))
-            lr = tk.Label(f, text=lbl_r, bg=self.BG2, fg=self.FG_DIM,
-                          font=(self.FONT, 8), width=5, anchor="w")
-            lr.pack(side=tk.LEFT)
-            if tr: tip(lr, tr)
-            sr = mk_spin(f, lo, hi, var_r, w=3, tooltip=tr)
-            sr.pack(side=tk.LEFT, padx=2)
+        stacked("Camera IP",   self._ip_var,
+                tooltip_text="LAN IP of your PTZOptics camera.")
+        stacked("Username",    self._usr_var,
+                tooltip_text="RTSP username. Default: admin")
+        stacked("Password",    self._pass_var,  show="*",
+                tooltip_text="RTSP password. Default: admin")
 
-        # ══════════════════════════════════════════════════════
-        # CAMERA
-        # ══════════════════════════════════════════════════════
-        section("CAMERA")
+        pre_f = tk.Frame(p, bg=BG2)
+        pre_f.pack(fill=tk.X, padx=8, pady=(4, 0))
+        tk.Label(pre_f, text="Home Preset", bg=BG2, fg=FG_DIM,
+                 font=(FONT, 7), anchor="w").pack(fill=tk.X)
+        tk.Spinbox(pre_f, from_=0, to=89, textvariable=self._pre_var,
+                   width=5, bg=BG3, fg=FG,
+                   insertbackground=AMBER, buttonbackground=BG3,
+                   relief=tk.FLAT, font=(FONT, 10, "bold"),
+                   highlightthickness=1, highlightbackground=BORDER,
+                   highlightcolor=AMBER).pack(anchor="w")
 
-        self._ip_var   = tk.StringVar(value=SETTINGS.camera_ip)
-        self._usr_var  = tk.StringVar(value=SETTINGS.rtsp_user)
-        self._pass_var = tk.StringVar(value=SETTINGS.rtsp_pass)
-        self._str_var  = tk.StringVar(value=SETTINGS.rtsp_stream)
-        self._pre_var  = tk.IntVar(value=SETTINGS.home_preset)
+        tk.Frame(p, bg=BORDER, height=1).pack(fill=tk.X, padx=8, pady=8)
 
-        lentry("Camera IP",   self._ip_var,
-               tooltip="LAN IP of your PTZOptics camera. Default factory IP is 192.168.100.88")
-        lentry("Username",    self._usr_var,   tooltip="RTSP username. Default: admin")
-        lentry("Password",    self._pass_var,  show="*", tooltip="RTSP password. Default: admin")
-        # Stream spinbox — 1 or 2 only
-        sf = tk.Frame(p, bg=self.BG2)
-        sf.pack(fill=tk.X, padx=10, pady=2)
-        lbl_s = tk.Label(sf, text="Stream 1/2", bg=self.BG2, fg=self.FG_DIM,
-                         font=(self.FONT, 8), width=14, anchor="w")
-        lbl_s.pack(side=tk.LEFT)
-        tip(lbl_s, "1 = main stream 1080p (more latency).\n2 = sub stream 720p (less latency). Recommended: 2")
-        stream_sb = tk.Spinbox(sf, from_=1, to=2, textvariable=self._str_var,
-                               width=3, bg=self.BG3, fg=self.FG,
-                               insertbackground=self.AMBER,
-                               buttonbackground=self.BG3,
-                               relief=tk.FLAT, font=(self.FONT, 10, "bold"),
-                               highlightthickness=1,
-                               highlightbackground=self.BORDER,
-                               highlightcolor=self.AMBER)
-        stream_sb.pack(side=tk.LEFT, padx=4)
-        tip(stream_sb, "1 = main stream 1080p (more latency).\n2 = sub stream 720p (less latency). Recommended: 2")
-        lspin("Home Preset",  1, 9, self._pre_var,
-              tooltip="Preset recalled when speaker is lost for 3+ seconds.")
-
-        divider()
-
-        # ── Tracking button ───────────────────────────────────
-        divider()
-
+        # ── TRACKING toggle ───────────────────────────────
         self._tracking_on = False
 
-        def _on_track_click():
+        def _on_track():
             if not (self._thread and self._thread.running):
                 return
             self._tracking_on = not self._tracking_on
             self._thread.tracking = self._tracking_on
             if self._tracking_on:
-                if self.tracker:
-                    self.tracker.reset()
-                self._track_btn.configure(
-                    text="● TRACKING  ON",
-                    bg=self.GREEN, fg="#000",
-                    activebackground="#5fffaa")
+                if self.tracker: self.tracker.reset()
+                self._track_btn.configure(text="● TRACKING  ON",
+                    bg=GREEN, fg="#000", activebackground="#5fffaa")
             else:
-                if self.visca:
-                    self.visca.stop()
-                    self.visca.zoom_stop()
-                self._track_btn.configure(
-                    text="○ TRACKING  OFF",
-                    bg=self.BG3, fg=self.FG_DIM,
-                    activebackground=self.GREEN)
-                # Also release lock
+                if self.visca: self.visca.stop(); self.visca.zoom_stop()
+                self._track_btn.configure(text="○ TRACKING  OFF",
+                    bg=BG3, fg=FG_DIM, activebackground=GREEN)
                 self._lock_active = False
-                self._lock_btn.configure(
-                    text="🔓  LOCK OFF",
-                    bg=self.BG3, fg=self.FG_DIM)
+                self._lock_btn.configure(text="○ LOCK  OFF",
+                    bg=BG3, fg=FG_DIM)
 
         self._track_btn = tk.Button(p, text="○ TRACKING  OFF",
-                                    command=_on_track_click,
-                                    bg=self.BG3, fg=self.FG_DIM,
-                                    font=(self.FONT, 11, "bold"),
+                                    command=_on_track,
+                                    bg=BG3, fg=FG_DIM,
+                                    font=(FONT, 10, "bold"),
                                     relief=tk.FLAT, cursor="hand2",
-                                    activebackground=self.GREEN,
+                                    activebackground=GREEN,
                                     activeforeground="#000",
                                     pady=10)
-        self._track_btn.pack(fill=tk.X, padx=10, pady=(6, 3))
-        tip(self._track_btn,
-            "Start or stop auto-tracking.\nWhen ON the camera follows whoever is in frame.\nWhen OFF you have full manual control.")
+        self._track_btn.pack(fill=tk.X, padx=8, pady=(2, 2))
+        tip(self._track_btn, "Start/stop auto-tracking.")
 
-        # ── Lock button ────────────────────────────────────────
+        # ── LOCK toggle ───────────────────────────────────
         self._lock_active = False
 
-        def _on_lock_click():
+        def _on_lock():
             if not (self._thread and self._thread.running and self._thread.tracking):
                 return
             self._lock_active = not self._lock_active
             if self._lock_active:
-                self._lock_btn.configure(
-                    text="🔒  LOCKED ON",
-                    bg=self.AMBER, fg="#000",
-                    activebackground="#ffbe5c")
-                print("[LOCK] Locked onto current subject")
+                self._lock_btn.configure(text="● LOCKED  ON",
+                    bg=AMBER, fg="#000", activebackground="#ffbe5c")
             else:
-                if self.detector:
-                    self.detector.release_lock()
-                self._lock_btn.configure(
-                    text="🔓  LOCK OFF",
-                    bg=self.BG3, fg=self.FG_DIM,
-                    activebackground=self.AMBER)
-                print("[LOCK] Unlocked")
+                if self.detector: self.detector.release_lock()
+                self._lock_btn.configure(text="○ LOCK  OFF",
+                    bg=BG3, fg=FG_DIM, activebackground=AMBER)
 
-        self._lock_btn = tk.Button(p, text="🔓  LOCK OFF",
-                                   command=_on_lock_click,
-                                   bg=self.BG3, fg=self.FG_DIM,
-                                   font=(self.FONT, 11, "bold"),
+        self._lock_btn = tk.Button(p, text="○ LOCK  OFF",
+                                   command=_on_lock,
+                                   bg=BG3, fg=FG_DIM,
+                                   font=(FONT, 10, "bold"),
                                    relief=tk.FLAT, cursor="hand2",
-                                   activebackground=self.AMBER,
+                                   activebackground=AMBER,
                                    activeforeground="#000",
                                    pady=10)
-        self._lock_btn.pack(fill=tk.X, padx=10, pady=(3, 6))
-        tip(self._lock_btn,
-            "Lock onto the current person in frame.\nWhen locked, ignores everyone else.\nClick again to unlock.")
+        self._lock_btn.pack(fill=tk.X, padx=8, pady=(2, 6))
+        tip(self._lock_btn, "Lock onto the current subject. Ignores everyone else.")
 
-        self._start_btn = None
-        self._stop_btn  = None
+        tk.Frame(p, bg=BORDER, height=1).pack(fill=tk.X, padx=8, pady=(0, 6))
 
-        # ══════════════════════════════════════════════════════
-        # PAN / TILT
-        # ══════════════════════════════════════════════════════
-        section("PAN  /  TILT")
+        # ── AUTO ZOOM toggle button ────────────────────────
+        def _on_autozoom():
+            on = not self._zoom_en_v.get()
+            self._zoom_en_v.set(on)
+            SETTINGS.zoom_enabled = on
+            if not on:
+                try:
+                    if self.visca: self.visca.zoom_stop()
+                except Exception: pass
+            self._on_zoom_toggle_main()
 
-        # Vertical offset spinbox
-        self._offset_var = tk.IntVar(value=SETTINGS.track_offset)
-        of = tk.Frame(p, bg=self.BG2)
-        of.pack(fill=tk.X, padx=10, pady=(0, 4))
-        lbl_o = tk.Label(of, text="Vertical Offset", bg=self.BG2, fg=self.FG_DIM,
-                         font=(self.FONT, 8), width=14, anchor="w")
-        lbl_o.pack(side=tk.LEFT)
-        tip(lbl_o, "Fine-tune aim point up or down.\n-7 = top of head\n+7 = feet\n0 = centered")
-        offset_sb = tk.Spinbox(of, from_=-7, to=7, textvariable=self._offset_var,
-                               width=4, bg=self.BG3, fg=self.FG,
-                               insertbackground=self.AMBER,
-                               buttonbackground=self.BG3,
-                               relief=tk.FLAT, font=(self.FONT, 10, "bold"),
-                               highlightthickness=1,
-                               highlightbackground=self.BORDER,
-                               highlightcolor=self.AMBER)
-        offset_sb.pack(side=tk.LEFT, padx=4)
-        tip(offset_sb, "Fine-tune aim point up or down.\n-7 = top of head\n+7 = feet\n0 = centered")
+        self._autozoom_btn = tk.Button(p, text="○ AUTO-ZOOM  OFF",
+                                       command=_on_autozoom,
+                                       bg=BG3, fg=FG_DIM,
+                                       font=(FONT, 10, "bold"),
+                                       relief=tk.FLAT, cursor="hand2",
+                                       activebackground=AMBER,
+                                       activeforeground="#000",
+                                       pady=10)
+        self._autozoom_btn.pack(fill=tk.X, padx=8, pady=(2, 6))
+        tip(self._autozoom_btn, "Automatically zoom in/out to keep subject filling the frame.")
+        self._on_zoom_toggle_main()
 
-        self._pan_dead_v  = tk.DoubleVar(value=SETTINGS.pan_dead)
-        self._tilt_dead_v = tk.DoubleVar(value=SETTINGS.tilt_dead)
-        self._pan_slow_v  = tk.IntVar(value=SETTINGS.pan_slow)
-        self._pan_fast_v  = tk.IntVar(value=SETTINGS.pan_fast)
-        self._tilt_slow_v = tk.IntVar(value=SETTINGS.tilt_slow)
-        self._tilt_fast_v = tk.IntVar(value=SETTINGS.tilt_fast)
+    # ── Zoom toggle (main panel) ─────────────────────────────
 
-        pair_spins("Pan  Slow", "Fast", 1, 24,
-                   self._pan_slow_v, self._pan_fast_v,
-                   tl="Pan speed when slightly off-center. Lower = smoother. 1-24.",
-                   tr="Pan speed when far off-center. Higher = snappier. 1-24.")
-        pair_spins("Tilt  Slow", "Fast", 1, 24,
-                   self._tilt_slow_v, self._tilt_fast_v,
-                   tl="Tilt speed when slightly above/below center. 1-24.",
-                   tr="Tilt speed when far above/below center. 1-24.")
-
-        # ══════════════════════════════════════════════════════
-        # ZOOM
-        # ══════════════════════════════════════════════════════
-        section("ZOOM")
-
-        self._zoom_en_v   = tk.BooleanVar(value=SETTINGS.zoom_enabled)
-        self._zoom_tgt_v  = tk.IntVar(value=int(SETTINGS.zoom_target * 100))
-        self._zoom_dead_v = tk.IntVar(value=int(SETTINGS.zoom_dead  * 100))
-        self._zoom_spd_v  = tk.IntVar(value=SETTINGS.zoom_speed)
-
-        zf = tk.Frame(p, bg=self.BG2)
-        zf.pack(fill=tk.X, padx=10, pady=(4,2))
-        self._zoom_cb = tk.Checkbutton(zf, text="  Enable Auto-Zoom",
-                                       variable=self._zoom_en_v,
-                                       bg=self.BG2, fg=self.FG,
-                                       selectcolor=self.BG3,
-                                       activebackground=self.BG2,
-                                       font=(self.FONT, 9),
-                                       command=self._on_zoom_toggle,
-                                       cursor="hand2")
-        self._zoom_cb.pack(side=tk.LEFT)
-        tip(self._zoom_cb,
-            "Automatically zoom in/out to keep subject filling the frame. Disable to zoom manually.")
-
-        self._zoom_rows = []
-        self._zoom_rows.append(
-            lspin("Target Fill %", 20, 90, self._zoom_tgt_v,
-                  tooltip="How much of the frame height the person occupies. 45 = zoomed out, 80 = zoomed in."))
-        self._zoom_rows.append(
-            lspin("Dead Zone %",   5,  40, self._zoom_dead_v,
-                  tooltip="Tolerance before zooming starts. Higher = less zoom hunting. Recommended: 20"))
-        self._zoom_rows.append(
-            lspin("Zoom Speed",    0,  7,  self._zoom_spd_v,
-                  tooltip="Motor speed for zoom. 0-7. Start at 1 for smooth motion."))
-        self._on_zoom_toggle()
-
-        # ══════════════════════════════════════════════════════
-        # APPLY
-        # ══════════════════════════════════════════════════════
-        divider()
-        btn_row_as = tk.Frame(p, bg=self.BG2)
-        btn_row_as.pack(fill=tk.X, padx=10, pady=6)
-        ab = tk.Button(btn_row_as, text="APPLY  SETTINGS",
-                       command=self._apply_settings,
-                       bg=self.BG3, fg=self.AMBER,
-                       font=(self.FONT, 9, "bold"),
-                       relief=tk.FLAT, cursor="hand2",
-                       activebackground=self.AMBER_DIM,
-                       activeforeground=self.FG, pady=7)
-        ab.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0,4))
-        tip(ab, "Push all current settings to the live tracker. Takes effect on next frame.")
-        sb = tk.Button(btn_row_as, text="💾  SAVE",
-                       command=lambda: [self._apply_settings(), SETTINGS.save()],
-                       bg=self.BG3, fg=self.FG,
-                       font=(self.FONT, 9, "bold"),
-                       relief=tk.FLAT, cursor="hand2",
-                       activebackground=self.GREEN,
-                       activeforeground="#000", pady=7, padx=10)
-        sb.pack(side=tk.LEFT)
-        tip(sb, "Apply settings and save to disk immediately.")
-
-        # ══════════════════════════════════════════════════════
-        # PROFILES
-        # ══════════════════════════════════════════════════════
-        section("PROFILES")
-
-        prof_row = tk.Frame(p, bg=self.BG2)
-        prof_row.pack(fill=tk.X, padx=10, pady=(4,2))
-
-        self._profile_var = tk.StringVar(value=PROFILE_MANAGER.current or "")
-        prof_names = list(PROFILE_MANAGER.profiles.keys())
-        self._profile_dd = tk.OptionMenu(prof_row, self._profile_var,
-                                         *prof_names if prof_names else [""])
-        self._profile_dd.configure(bg=self.BG3, fg=self.FG,
-                                   activebackground=self.AMBER,
-                                   activeforeground="#000",
-                                   highlightthickness=0,
-                                   relief=tk.FLAT,
-                                   font=(self.FONT, 9))
-        self._profile_dd["menu"].configure(bg=self.BG3, fg=self.FG,
-                                            activebackground=self.AMBER,
-                                            activeforeground="#000",
-                                            font=(self.FONT, 9))
-        self._profile_dd.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0,4))
-        tip(self._profile_dd, "Select a saved profile to load.")
-
-        load_prof_btn = tk.Button(prof_row, text="LOAD",
-                                  command=self._load_profile,
-                                  bg=self.BG3, fg=self.FG,
-                                  font=(self.FONT, 8, "bold"),
-                                  relief=tk.FLAT, cursor="hand2",
-                                  activebackground=self.AMBER,
-                                  activeforeground="#000",
-                                  padx=8, pady=5)
-        load_prof_btn.pack(side=tk.LEFT)
-        tip(load_prof_btn, "Load the selected profile.")
-
-        prof_row2 = tk.Frame(p, bg=self.BG2)
-        prof_row2.pack(fill=tk.X, padx=10, pady=(2,6))
-
-        self._new_profile_var = tk.StringVar()
-        new_prof_entry = tk.Entry(prof_row2, textvariable=self._new_profile_var,
-                                  width=14, bg=self.BG3, fg=self.FG,
-                                  insertbackground=self.AMBER,
-                                  relief=tk.FLAT, font=(self.FONT, 9),
-                                  highlightthickness=1,
-                                  highlightcolor=self.AMBER,
-                                  highlightbackground=self.BORDER)
-        new_prof_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0,4))
-        tip(new_prof_entry, "Type a profile name then click SAVE.")
-
-        save_prof_btn = tk.Button(prof_row2, text="SAVE",
-                                  command=self._save_profile,
-                                  bg=self.AMBER, fg="#000",
-                                  font=(self.FONT, 8, "bold"),
-                                  relief=tk.FLAT, cursor="hand2",
-                                  activebackground="#ffbe5c",
-                                  padx=8, pady=5)
-        save_prof_btn.pack(side=tk.LEFT, padx=(0,2))
-        tip(save_prof_btn, "Save current settings as a named profile.")
-
-        del_prof_btn = tk.Button(prof_row2, text="DEL",
-                                 command=self._delete_profile,
-                                 bg=self.BG3, fg=self.RED,
-                                 font=(self.FONT, 8, "bold"),
-                                 relief=tk.FLAT, cursor="hand2",
-                                 activebackground=self.RED,
-                                 activeforeground="white",
-                                 padx=8, pady=5)
-        del_prof_btn.pack(side=tk.LEFT)
-        tip(del_prof_btn, "Delete the selected profile.")
-
-        # ══════════════════════════════════════════════════════
-        # ADVANCED SETTINGS (collapsible)
-        # ══════════════════════════════════════════════════════
-        divider()
-        self._adv_open = False
-        self._adv_btn  = tk.Button(p, text="\u2699  ADVANCED  SETTINGS  \u25b8",
-                                   command=self._toggle_advanced,
-                                   bg=self.BG2, fg=self.FG_DIM,
-                                   font=(self.FONT, 8, "bold"),
-                                   relief=tk.FLAT, cursor="hand2",
-                                   activebackground=self.BG3,
-                                   activeforeground=self.FG,
-                                   pady=5, anchor="w", padx=10)
-        self._adv_btn.pack(fill=tk.X)
-        tip(self._adv_btn, "Show/hide advanced tuning. Only change these if you know what you are doing.")
-
-        self._adv_container = tk.Frame(p, bg=self.BG2)
-        # not packed until toggled
-        adv = self._adv_container
-
-        def adv_sec(text):
-            tk.Label(adv, text=f"  {text}",
-                     bg=self.BG3, fg=self.AMBER,
-                     font=(self.FONT, 8, "bold"),
-                     anchor="w", pady=4).pack(fill=tk.X, pady=(6,0))
-            tk.Frame(adv, bg=self.AMBER, height=1).pack(fill=tk.X)
-
-        def adv_spin(label, lo, hi, var, inc=1, w=5, tooltip=""):
-            f = tk.Frame(adv, bg=self.BG2)
-            f.pack(fill=tk.X, padx=10, pady=2)
-            lbl = tk.Label(f, text=label, bg=self.BG2, fg=self.FG_DIM,
-                           font=(self.FONT, 8), width=16, anchor="w")
-            lbl.pack(side=tk.LEFT)
-            if tooltip: tip(lbl, tooltip)
-            sb = tk.Spinbox(adv if False else f,
-                            from_=lo, to=hi, textvariable=var,
-                            increment=inc, width=w,
-                            bg=self.BG3, fg=self.FG,
-                            insertbackground=self.AMBER,
-                            buttonbackground=self.BG3,
-                            relief=tk.FLAT, font=(self.FONT, 10, "bold"),
-                            highlightthickness=1,
-                            highlightbackground=self.BORDER,
-                            highlightcolor=self.AMBER)
-            sb.pack(side=tk.LEFT, padx=4)
-            if tooltip: tip(sb, tooltip)
-            return sb
-
-        adv_sec("DEAD ZONES")
-        adv_spin("Pan Dead Zone",  0.02, 0.30, self._pan_dead_v,  inc=0.01, w=5,
-                 tooltip="Fraction of frame where camera ignores small pan offsets. Default: 0.10. Higher = less twitching near center.")
-        adv_spin("Tilt Dead Zone", 0.02, 0.30, self._tilt_dead_v, inc=0.01, w=5,
-                 tooltip="Fraction of frame where camera ignores small tilt offsets. Default: 0.10. Higher = less twitching near center.")
-
-        adv_sec("PREDICTION")
-        self._lat_v = tk.DoubleVar(value=SETTINGS.latency_comp)
-        adv_spin("Latency Comp",   0.0, 2.0,  self._lat_v,       inc=0.05, w=5,
-                 tooltip="Seconds of look-ahead to compensate for RTSP delay. Default: 0.40. Too high = camera oscillates.")
-
-        adv_sec("TIMING")
-        self._lost_v = tk.DoubleVar(value=SETTINGS.lost_timeout)
-        adv_spin("Lost Timeout s", 1.0, 10.0, self._lost_v,       inc=0.5,  w=5,
-                 tooltip="Seconds before camera returns to home preset when speaker is lost. Default: 3.0")
-
-        tk.Label(adv, bg=self.BG2).pack(pady=4)
-        tk.Label(p,   bg=self.BG2).pack(pady=6)
-
-
-    def _on_zoom_toggle(self):
-        state = tk.NORMAL if self._zoom_en_v.get() else tk.DISABLED
-        for w in self._zoom_rows:
-            try:
-                w.configure(state=state)
-            except Exception:
-                pass
-
-    # ── Start / Stop ────────────────────────────────────────
-
-    def _on_start(self):
-        """Start stream thread. Called once at app launch."""
-        if self._thread and self._thread.running:
-            return
-        self._apply_settings()
-        self._thread = TrackerThread(self)
-        self._thread.start()
-        print("[INFO] Stream started")
-
-    def _on_stop(self):
-        if self._thread:
-            self._thread.tracking = False
-            self._thread.stop()
-        # Reset both pills to off
-        if hasattr(self, '_stream_pill'):
-            self._stream_pill["set"](False)
-        if hasattr(self, '_lock_pill'):
-            self._lock_pill["set"](False)
-        self.status_var.set("● OFFLINE")
-        if hasattr(self, '_status_lbl'):
-            self._status_lbl.configure(fg=self.FG_DIM)
-
-    def _on_toggle_tracking(self):
-        """Legacy — now handled by lock pill directly."""
-        pass
-
-    # ── Apply settings ──────────────────────────────────────
-
-    def _apply_settings(self):
-        SETTINGS.camera_ip    = self._ip_var.get().strip()
-        SETTINGS.rtsp_user    = self._usr_var.get().strip()
-        SETTINGS.rtsp_pass    = self._pass_var.get().strip()
-        SETTINGS.rtsp_stream  = self._str_var.get().strip()
-        SETTINGS.home_preset  = self._pre_var.get()
-        SETTINGS.pan_dead     = self._pan_dead_v.get()
-        SETTINGS.tilt_dead    = self._tilt_dead_v.get()
-        SETTINGS.pan_near     = SETTINGS.pan_dead  + 0.15
-        SETTINGS.tilt_near    = SETTINGS.tilt_dead + 0.15
-        SETTINGS.pan_slow     = self._pan_slow_v.get()
-        SETTINGS.pan_fast     = self._pan_fast_v.get()
-        SETTINGS.tilt_slow    = self._tilt_slow_v.get()
-        SETTINGS.tilt_fast    = self._tilt_fast_v.get()
-        SETTINGS.zoom_enabled = self._zoom_en_v.get()
-        SETTINGS.zoom_target  = self._zoom_tgt_v.get() / 100.0
-        SETTINGS.zoom_dead    = self._zoom_dead_v.get() / 100.0
-        SETTINGS.zoom_speed   = self._zoom_spd_v.get()
-        SETTINGS.latency_comp = self._lat_v.get()
-        SETTINGS.lost_timeout = self._lost_v.get()
-        SETTINGS.track_offset = self._offset_var.get()
-        # Restart stream if connection settings changed
-        if self._thread and self._thread.running:
-            new_url = f"rtsp://{SETTINGS.rtsp_user}:{SETTINGS.rtsp_pass}@{SETTINGS.camera_ip}/{SETTINGS.rtsp_stream}"
-            old_url = getattr(self, '_last_url', None)
-            if new_url != old_url:
-                print("[INFO] Connection settings changed — restarting stream...")
-                self._thread.tracking = False
-                self._thread.stop()
-                self._thread = None
-                self._last_url = new_url
-                self.root.after(800, self._on_start)
-        self._last_url = f"rtsp://{SETTINGS.rtsp_user}:{SETTINGS.rtsp_pass}@{SETTINGS.camera_ip}/{SETTINGS.rtsp_stream}"
-        SETTINGS.save()
-        print(f"[SETTINGS] Applied — IP:{SETTINGS.camera_ip}  "
-              f"Pan slow:{SETTINGS.pan_slow} fast:{SETTINGS.pan_fast}  "
-              f"Zoom:{'ON' if SETTINGS.zoom_enabled else 'OFF'} "
-              f"tgt:{SETTINGS.zoom_target:.2f} spd:{SETTINGS.zoom_speed}")
-
-    # ── Preset recall ────────────────────────────────────────
-
-    def _recall_preset(self, n):
-        if self.visca:
-            self.visca.recall_preset(n)
-            print(f"[PRESET] Recalled {n}")
-
-
-
-    # ── Preview update loop ──────────────────────────────────
-
-    def _update_preview(self):
+    def _on_zoom_toggle_main(self):
+        on = self._zoom_en_v.get()
+        state = tk.NORMAL if on else tk.DISABLED
         try:
-            if self._thread and self._thread.latest_frame is not None:
-                with self._thread._frame_lock:
-                    frame = self._thread.latest_frame.copy()
-
-                detection = self._thread.latest_detection
-                h, w      = frame.shape[:2]
-
-                # Draw crosshair
-                cv2.line(frame, (w//2 - 20, h//2), (w//2 + 20, h//2), (0,255,0), 1)
-                cv2.line(frame, (w//2, h//2 - 20), (w//2, h//2 + 20), (0,255,0), 1)
-
-                # Draw detection box
-                if detection:
-                    dcx, dcy, dw, dh = detection
-                    x0 = int((dcx - dw/2) * w)
-                    y0 = int((dcy - dh/2) * h)
-                    x1 = int((dcx + dw/2) * w)
-                    y1 = int((dcy + dh/2) * h)
-                    cv2.rectangle(frame, (x0,y0), (x1,y1), (0,200,255), 2)
-                    cv2.circle(frame, (int(dcx*w), int(dcy*h)), 5, (0,200,255), -1)
-
-                # Status overlay
-                status = self._thread.status if self._thread else "STOPPED"
-                color  = (0,255,0) if status == "TRACKING" else (0,165,255)
-                cv2.putText(frame, status, (10, 25),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2, cv2.LINE_AA)
-
-                zoom_lbl = ""
-                if self._thread and self.tracker:
-                    z = self.tracker._prev_zoom
-                    zoom_lbl = "ZOOM IN" if z==1 else ("ZOOM OUT" if z==-1 else "")
-                if zoom_lbl:
-                    cv2.putText(frame, zoom_lbl, (10, 50),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,200,0), 1, cv2.LINE_AA)
-
-                # Resize to preview
-                cw = max(self.canvas.winfo_width(), self.PREVIEW_W)
-                ch = max(self.canvas.winfo_height(), self.PREVIEW_H)
-                display = cv2.resize(frame, (cw, ch))
-                img     = Image.fromarray(cv2.cvtColor(display, cv2.COLOR_BGR2RGB))
-                imgtk   = ImageTk.PhotoImage(image=img)
-                self.canvas.imgtk = imgtk
-                self.canvas.delete('all')
-                self.canvas.create_image(0, 0, anchor=tk.NW, image=imgtk)
-
-                # Update status bar
-                st = self._thread.status if self._thread else "STOPPED"
-                if st == "TRACKING":
-                    self.status_var.set("\u25cf TRACKING")
-                    self._status_lbl.configure(fg=self.GREEN)
-                elif st == "PAUSED":
-                    self.status_var.set("\u25cf PAUSED")
-                    self._status_lbl.configure(fg=self.AMBER)
-                else:
-                    self.status_var.set("\u25cf OFFLINE")
-                    self._status_lbl.configure(fg=self.FG_DIM)
-
-        except Exception as e:
+            self._zoom_spd_sb.configure(state=state)
+        except Exception:
             pass
 
-        self.root.after(33, self._update_preview)  # ~30fps
+    # ── Settings panel (inline, replaces camera view) ────────
 
-    def _toggle_advanced(self):
-        self._adv_open = not self._adv_open
-        if self._adv_open:
-            self._adv_container.pack(fill=tk.X)
-            self._adv_btn.configure(text="⚙  ADVANCED  SETTINGS  ▾")
+    def _build_settings_panel(self, root):
+        """Build the settings panel with single-column row layout."""
+
+        # ── Header ────────────────────────────────────────
+        hdr = tk.Frame(root, bg=BG3, height=40)
+        hdr.pack(fill=tk.X, side=tk.TOP)
+        hdr.pack_propagate(False)
+        tk.Label(hdr, text="⚙   TRACKMIND  SETTINGS", bg=BG3, fg=AMBER,
+                 font=(FONT, 11, "bold")).pack(side=tk.LEFT, padx=16)
+        tk.Button(hdr, text="✕", command=self._toggle_settings,
+                  bg=BG3, fg=FG_DIM, font=(FONT, 11),
+                  relief=tk.FLAT, cursor="hand2",
+                  activebackground=RED, activeforeground="white",
+                  bd=0).pack(side=tk.RIGHT, padx=12)
+        tk.Frame(root, bg=AMBER, height=1).pack(fill=tk.X, side=tk.TOP)
+
+        # ── Footer (packed before canvas so it anchors at bottom) ──
+        tk.Frame(root, bg=BORDER, height=1).pack(fill=tk.X, side=tk.BOTTOM)
+        footer = tk.Frame(root, bg=BG3)
+        footer.pack(fill=tk.X, side=tk.BOTTOM)
+        tk.Button(footer, text="CANCEL",
+                  command=self._toggle_settings,
+                  bg=BG3, fg=FG_DIM, font=(FONT, 9, "bold"),
+                  relief=tk.FLAT, cursor="hand2",
+                  activebackground=BORDER, activeforeground=FG,
+                  padx=16, pady=8).pack(side=tk.LEFT, padx=(14, 0), pady=8)
+        tk.Button(footer, text="SAVE",
+                  command=lambda: [self._apply_settings(), SETTINGS.save()],
+                  bg=AMBER, fg="#000", font=(FONT, 9, "bold"),
+                  relief=tk.FLAT, cursor="hand2",
+                  activebackground="#ffbe5c",
+                  padx=16, pady=8).pack(side=tk.RIGHT, padx=(0, 14), pady=8)
+        tk.Button(footer, text="APPLY  SETTINGS",
+                  command=self._apply_settings,
+                  bg=BG3, fg=AMBER, font=(FONT, 9, "bold"),
+                  relief=tk.FLAT, cursor="hand2",
+                  activebackground=AMBER_DIM, activeforeground=FG,
+                  padx=16, pady=8).pack(side=tk.RIGHT, padx=(0, 4), pady=8)
+
+        # ── Scrollable content ─────────────────────────────
+        sc  = tk.Canvas(root, bg=BG2, highlightthickness=0)
+        vsb = tk.Scrollbar(root, orient="vertical", command=sc.yview,
+                           bg=BG2, troughcolor=BG3, activebackground=AMBER_DIM)
+        self._sw_inner = tk.Frame(sc, bg=BG2)
+        self._sw_inner.bind("<Configure>",
+                            lambda e: sc.configure(scrollregion=sc.bbox("all")))
+        _cw = sc.create_window((0, 0), window=self._sw_inner, anchor="nw")
+        sc.bind("<Configure>", lambda e: sc.itemconfigure(_cw, width=e.width))
+        sc.configure(yscrollcommand=vsb.set)
+        vsb.pack(side=tk.RIGHT, fill=tk.Y)
+        sc.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        sc.bind("<MouseWheel>",
+                lambda e: sc.yview_scroll(int(-1*(e.delta/120)), "units"))
+        sc.bind("<Button-4>", lambda e: sc.yview_scroll(-1, "units"))
+        sc.bind("<Button-5>", lambda e: sc.yview_scroll(1, "units"))
+
+        p = self._sw_inner
+
+        # ── Row / section helpers ──────────────────────────
+
+        def sec(text):
+            f = tk.Frame(p, bg=BG3)
+            f.pack(fill=tk.X)
+            tk.Label(f, text=text, bg=BG3, fg=AMBER,
+                     font=(FONT, 8, "bold"), anchor="w",
+                     padx=16, pady=6).pack(side=tk.LEFT)
+            tk.Frame(p, bg=BORDER, height=1).pack(fill=tk.X)
+
+        def make_row(label, subtitle=""):
+            f = tk.Frame(p, bg=BG2)
+            f.pack(fill=tk.X)
+            left = tk.Frame(f, bg=BG2)
+            left.pack(side=tk.LEFT, fill=tk.Y, padx=(16, 8), pady=8)
+            tk.Label(left, text=label, bg=BG2, fg=FG,
+                     font=(FONT, 9), anchor="w").pack(anchor="w")
+            if subtitle:
+                tk.Label(left, text=subtitle, bg=BG2, fg=FG_DIM,
+                         font=(FONT, 7), anchor="w").pack(anchor="w")
+            right = tk.Frame(f, bg=BG2)
+            right.pack(side=tk.RIGHT, padx=16, pady=8)
+            tk.Frame(p, bg=BORDER, height=1).pack(fill=tk.X)
+            return right
+
+        def spin_row(label, subtitle, lo, hi, var, inc=1, w=7, fmt=None, tooltip=""):
+            right = make_row(label, subtitle)
+            kw = {"format": fmt} if fmt else {}
+            sb = tk.Spinbox(right, from_=lo, to=hi, textvariable=var,
+                            increment=inc, width=w,
+                            bg=BG3, fg=AMBER, insertbackground=AMBER,
+                            buttonbackground=BG3, relief=tk.FLAT,
+                            font=(FONT, 10), highlightthickness=1,
+                            highlightbackground=BORDER, highlightcolor=AMBER, **kw)
+            sb.pack(side=tk.RIGHT)
+            if tooltip:
+                tip(sb, tooltip)
+            return sb
+
+        # ── PROFILES ──────────────────────────────────────
+        sec("PROFILES")
+
+        # Load profile row
+        r1 = make_row("Active Profile", "Select and load a saved profile")
+        prof_names = PROFILE_MANAGER.list_profiles()
+        self._profile_dd = tk.OptionMenu(r1, self._profile_var,
+                                         *(prof_names if prof_names else [""]))
+        self._profile_dd.configure(bg=BG3, fg=FG, activebackground=AMBER,
+                                   activeforeground="#000", highlightthickness=0,
+                                   relief=tk.FLAT, font=(FONT, 8), width=10)
+        self._profile_dd["menu"].configure(bg=BG3, fg=FG, activebackground=AMBER,
+                                            activeforeground="#000", font=(FONT, 8))
+        self._profile_dd.pack(side=tk.LEFT, padx=(0, 4))
+        tip(self._profile_dd, "Select a saved profile.")
+        tk.Button(r1, text="LOAD", command=self._load_profile,
+                  bg=BG3, fg=FG, font=(FONT, 8, "bold"),
+                  relief=tk.FLAT, cursor="hand2",
+                  activebackground=AMBER, activeforeground="#000",
+                  padx=8, pady=3).pack(side=tk.LEFT)
+
+        # Save profile row
+        r2 = make_row("Save Profile", "Name and save current settings as a new profile")
+        tk.Button(r2, text="DEL", command=self._delete_profile,
+                  bg=BG3, fg=RED, font=(FONT, 8, "bold"),
+                  relief=tk.FLAT, cursor="hand2",
+                  activebackground=RED, activeforeground="white",
+                  padx=8, pady=3).pack(side=tk.RIGHT)
+        tk.Button(r2, text="SAVE AS", command=self._save_profile,
+                  bg=AMBER, fg="#000", font=(FONT, 8, "bold"),
+                  relief=tk.FLAT, cursor="hand2",
+                  activebackground="#ffbe5c",
+                  padx=8, pady=3).pack(side=tk.RIGHT, padx=(0, 4))
+        new_e = tk.Entry(r2, textvariable=self._new_profile_var,
+                         bg=BG3, fg=FG, insertbackground=AMBER,
+                         relief=tk.FLAT, font=(FONT, 8), width=12,
+                         highlightthickness=1, highlightcolor=AMBER,
+                         highlightbackground=BORDER)
+        new_e.pack(side=tk.RIGHT, padx=(0, 6))
+        tip(new_e, "Type a name then click SAVE AS.")
+
+        # ── MOVEMENT ──────────────────────────────────────
+        sec("MOVEMENT")
+
+        spin_row("Pan Speed  —  Slow", "Speed when subject is slightly off-center  (1–24)",
+                 1, 24, self._pan_slow_v,
+                 tooltip="Pan speed when slightly off-center (1–24).")
+        spin_row("Pan Speed  —  Fast", "Speed when subject is far off-center  (1–24)",
+                 1, 24, self._pan_fast_v,
+                 tooltip="Pan speed when far off-center (1–24).")
+        spin_row("Tilt Speed  —  Slow", "Speed when subject is slightly above/below center  (1–24)",
+                 1, 24, self._tilt_slow_v,
+                 tooltip="Tilt speed when slightly above/below center (1–24).")
+        spin_row("Tilt Speed  —  Fast", "Speed when subject is far above/below center  (1–24)",
+                 1, 24, self._tilt_fast_v,
+                 tooltip="Tilt speed when far above/below center (1–24).")
+        spin_row("Vertical Offset", "Y tracking center offset  (−7 = top of head · 0 = center · +7 = feet)",
+                 -7, 7, self._offset_v,
+                 tooltip="Fine-tune aim point. -7 = top of head, +7 = feet, 0 = centered.")
+
+        # ── DEAD ZONES ────────────────────────────────────
+        sec("DEAD ZONES")
+
+        spin_row("Pan Dead Zone", "Fraction of frame ignored for pan  (0.17 default — higher = steadier)",
+                 0.02, 0.30, self._pan_dead_v, inc=0.01, w=6, fmt="%.2f",
+                 tooltip="Fraction of frame ignored for pan. 0.17 default. Higher = steadier.")
+        spin_row("Tilt Dead Zone", "Fraction of frame ignored for tilt  (0.17 default)",
+                 0.02, 0.30, self._tilt_dead_v, inc=0.01, w=6, fmt="%.2f",
+                 tooltip="Fraction of frame ignored for tilt. 0.17 default.")
+
+        # ── ZOOM ──────────────────────────────────────────
+        sec("ZOOM")
+
+        r3 = make_row("Auto-Zoom", "Automatically zoom to keep subject filling the frame")
+        self._zoom_settings_cb = tk.Checkbutton(
+            r3, text="Enable",
+            variable=self._zoom_en_v,
+            command=self._on_zoom_toggle_main,
+            bg=BG2, fg=FG, selectcolor=BG3,
+            activebackground=BG2, font=(FONT, 9), cursor="hand2")
+        self._zoom_settings_cb.pack(side=tk.RIGHT)
+        tip(self._zoom_settings_cb, "Automatically zoom to keep subject filling the frame.")
+
+        self._zoom_detail_rows = []
+        self._zoom_detail_rows.append(
+            spin_row("Target Fill %", "How much frame height the subject occupies  (45 = wide · 80 = tight)",
+                     20, 90, self._zoom_tgt_v,
+                     tooltip="How much frame height the person occupies. 45 = wide, 80 = tight."))
+        self._zoom_detail_rows.append(
+            spin_row("Zoom Dead Zone %", "Tolerance before zoom activates — higher means less hunting",
+                     5, 40, self._zoom_dead_v,
+                     tooltip="Tolerance before zoom activates. Higher = less hunting. 20 recommended."))
+        self._zoom_detail_rows.append(
+            spin_row("Zoom Speed", "Motor speed  (0–7 · start at 1 for smooth motion)",
+                     0, 7, self._zoom_spd_v,
+                     tooltip="Motor speed 0–7. Start at 1 for smooth motion."))
+        self._sync_zoom_detail_state()
+
+        # ── ADVANCED ──────────────────────────────────────
+        sec("ADVANCED")
+
+        spin_row("Latency Compensation", "Look-ahead seconds to offset RTSP delay  (0.40 default)",
+                 0.0, 2.0, self._lat_v, inc=0.05, w=6, fmt="%.2f",
+                 tooltip="Seconds of look-ahead to compensate RTSP delay. 0.40 default.")
+        spin_row("Lost Timeout", "Seconds before returning to home preset when subject is lost  (2.0 default)",
+                 1.0, 10.0, self._lost_v, inc=0.5, w=6, fmt="%.1f",
+                 tooltip="Seconds before camera returns home when subject is lost. 2.0 default.")
+
+        # ── UPDATES ───────────────────────────────────────
+        sec("UPDATES")
+
+        r4 = make_row("Current Version", "Installed software version")
+        tk.Label(r4, text=f"v{VERSION}", bg=BG3, fg=AMBER,
+                 font=(FONT, 8, "bold"), padx=10, pady=3).pack(side=tk.RIGHT)
+
+        r5 = make_row("Check for Updates", "Fetch the latest release from GitHub")
+        self._last_check_lbl = tk.Label(r5, text="never checked",
+                                        bg=BG2, fg=FG_DIM, font=(FONT, 8))
+        self._last_check_lbl.pack(side=tk.LEFT, padx=(0, 8))
+        tk.Button(r5, text="CHECK NOW",
+                  command=lambda: self._updater.check_async(manual=True) if hasattr(self, '_updater') else None,
+                  bg=BG3, fg=AMBER, font=(FONT, 8, "bold"),
+                  relief=tk.FLAT, cursor="hand2",
+                  activebackground=AMBER_DIM, activeforeground=FG,
+                  padx=10, pady=3).pack(side=tk.RIGHT)
+
+        # Bind scroll to every child widget so Linux scroll events propagate to canvas
+        def _bind_scroll(widget):
+            widget.bind("<MouseWheel>", lambda e: sc.yview_scroll(int(-1*(e.delta/120)), "units"))
+            widget.bind("<Button-4>", lambda e: sc.yview_scroll(-1, "units"))
+            widget.bind("<Button-5>", lambda e: sc.yview_scroll(1, "units"))
+            for child in widget.winfo_children():
+                _bind_scroll(child)
+        _bind_scroll(self._sw_inner)
+
+    def _sync_zoom_detail_state(self):
+        state = tk.NORMAL if self._zoom_en_v.get() else tk.DISABLED
+        for w in self._zoom_detail_rows:
+            try: w.configure(state=state)
+            except Exception: pass
+
+    def _sync_autozoom_btn(self):
+        if not hasattr(self, '_autozoom_btn'):
+            return
+        if self._zoom_en_v.get():
+            self._autozoom_btn.configure(text="● AUTO-ZOOM  ON",
+                bg=AMBER, fg="#000", activebackground="#ffbe5c")
         else:
-            self._adv_container.pack_forget()
-            self._adv_btn.configure(text="⚙  ADVANCED  SETTINGS  ▸")
+            self._autozoom_btn.configure(text="○ AUTO-ZOOM  OFF",
+                bg=BG3, fg=FG_DIM, activebackground=AMBER)
 
-    def _toggle_fullscreen(self, event=None):
-        self._fullscreen = not self._fullscreen
-        self.root.attributes("-fullscreen", self._fullscreen)
+    def _on_zoom_toggle_main(self):
+        on = self._zoom_en_v.get()
+        state = tk.NORMAL if on else tk.DISABLED
+        try: self._zoom_spd_sb.configure(state=state)
+        except Exception: pass
+        self._sync_zoom_detail_state()
+        self._sync_autozoom_btn()
 
-    def _exit_fullscreen(self, event=None):
-        if self._fullscreen:
-            self._fullscreen = False
-            self.root.attributes("-fullscreen", False)
+    # ── Toggle settings panel ────────────────────────────────
 
-    # ── Profiles ─────────────────────────────────────────────
+    def _toggle_settings(self):
+        if self._settings_visible:
+            self._settings_frame.place_forget()
+            self._settings_visible = False
+            self._settings_btn.configure(text="⚙  SETTINGS", fg=FG_DIM,
+                                         bg=BG2, activebackground=AMBER_DIM)
+        else:
+            self._settings_frame.place(relx=0.02, rely=0.02,
+                                       relwidth=0.96, relheight=0.96)
+            self._settings_frame.lift()
+            self._settings_visible = True
+            self._settings_btn.configure(text="⚙  SETTINGS ▾", fg=AMBER,
+                                         bg=AMBER_DIM, activebackground=AMBER_DIM)
+
+    # ── Setup wizard ─────────────────────────────────────────
+
+    def _run_setup_wizard(self):
+        SetupWizard(self)
+
+    # ── Refresh all UI vars from SETTINGS ────────────────────
+
+    def _refresh_ui_from_settings(self):
+        self._ip_var.set(SETTINGS.camera_ip)
+        self._usr_var.set(SETTINGS.rtsp_user)
+        self._pass_var.set(SETTINGS.rtsp_pass)
+        self._str_var.set(SETTINGS.rtsp_stream)
+        self._pre_var.set(SETTINGS.home_preset)
+        self._offset_v.set(SETTINGS.track_offset)
+        self._pan_dead_v.set(SETTINGS.pan_dead)
+        self._pan_slow_v.set(SETTINGS.pan_slow)
+        self._pan_fast_v.set(SETTINGS.pan_fast)
+        self._tilt_dead_v.set(SETTINGS.tilt_dead)
+        self._tilt_slow_v.set(SETTINGS.tilt_slow)
+        self._tilt_fast_v.set(SETTINGS.tilt_fast)
+        self._zoom_en_v.set(SETTINGS.zoom_enabled)
+        self._zoom_tgt_v.set(int(SETTINGS.zoom_target * 100))
+        self._zoom_dead_v.set(int(SETTINGS.zoom_dead  * 100))
+        self._zoom_spd_v.set(SETTINGS.zoom_speed)
+        self._lat_v.set(SETTINGS.latency_comp)
+        self._lost_v.set(SETTINGS.lost_timeout)
+        self._on_zoom_toggle_main()
+
+    # ── Profile operations ────────────────────────────────────
 
     def _refresh_profile_dropdown(self):
         menu = self._profile_dd["menu"]
         menu.delete(0, "end")
-        for name in PROFILE_MANAGER.profiles:
-            menu.add_command(label=name,
-                             command=lambda n=name: self._profile_var.set(n))
-        if not PROFILE_MANAGER.profiles:
+        names = PROFILE_MANAGER.list_profiles()
+        if names:
+            for n in names:
+                menu.add_command(label=n,
+                                 command=lambda x=n: self._profile_var.set(x))
+        else:
             menu.add_command(label="(no profiles)")
 
     def _save_profile(self):
@@ -1631,26 +1721,7 @@ class App:
         if not name or name not in PROFILE_MANAGER.profiles:
             return
         PROFILE_MANAGER.load_profile(name)
-        # Refresh all UI vars from SETTINGS
-        self._ip_var.set(SETTINGS.camera_ip)
-        self._usr_var.set(SETTINGS.rtsp_user)
-        self._pass_var.set(SETTINGS.rtsp_pass)
-        self._str_var.set(SETTINGS.rtsp_stream)
-        self._pre_var.set(SETTINGS.home_preset)
-        self._pan_slow_v.set(SETTINGS.pan_slow)
-        self._pan_fast_v.set(SETTINGS.pan_fast)
-        self._tilt_slow_v.set(SETTINGS.tilt_slow)
-        self._tilt_fast_v.set(SETTINGS.tilt_fast)
-        self._pan_dead_v.set(SETTINGS.pan_dead)
-        self._tilt_dead_v.set(SETTINGS.tilt_dead)
-        self._zoom_en_v.set(SETTINGS.zoom_enabled)
-        self._zoom_tgt_v.set(int(SETTINGS.zoom_target * 100))
-        self._zoom_dead_v.set(int(SETTINGS.zoom_dead * 100))
-        self._zoom_spd_v.set(SETTINGS.zoom_speed)
-        self._lat_v.set(SETTINGS.latency_comp)
-        self._lost_v.set(SETTINGS.lost_timeout)
-        self._offset_var.set(SETTINGS.track_offset)
-        print(f"[PROFILE] UI refreshed for: {name}")
+        self._refresh_ui_from_settings()
 
     def _delete_profile(self):
         name = self._profile_var.get()
@@ -1659,6 +1730,134 @@ class App:
         PROFILE_MANAGER.delete_profile(name)
         self._profile_var.set("")
         self._refresh_profile_dropdown()
+
+    # ── Start / Stop ──────────────────────────────────────────
+
+    def _on_start(self):
+        if self._thread and self._thread.running:
+            return
+        self._apply_settings()
+        self._thread = TrackerThread(self)
+        self._thread.start()
+
+    def _on_stop(self):
+        if self._thread:
+            self._thread.tracking = False
+            self._thread.stop()
+        self.status_var.set("OFFLINE")
+        if hasattr(self, '_status_lbl'):
+            self._status_lbl.configure(fg=FG_DIM)
+
+    # ── Apply settings ────────────────────────────────────────
+
+    def _apply_settings(self):
+        SETTINGS.camera_ip    = self._ip_var.get().strip()
+        SETTINGS.rtsp_user    = self._usr_var.get().strip()
+        SETTINGS.rtsp_pass    = self._pass_var.get().strip()
+        SETTINGS.rtsp_stream  = self._str_var.get().strip()
+        SETTINGS.home_preset  = self._pre_var.get()
+        SETTINGS.track_offset = self._offset_v.get()
+        SETTINGS.pan_dead     = self._pan_dead_v.get()
+        SETTINGS.tilt_dead    = self._tilt_dead_v.get()
+        SETTINGS.pan_near     = SETTINGS.pan_dead  + 0.15
+        SETTINGS.tilt_near    = SETTINGS.tilt_dead + 0.15
+        SETTINGS.pan_slow     = self._pan_slow_v.get()
+        SETTINGS.pan_fast     = self._pan_fast_v.get()
+        SETTINGS.tilt_slow    = self._tilt_slow_v.get()
+        SETTINGS.tilt_fast    = self._tilt_fast_v.get()
+        SETTINGS.zoom_enabled = self._zoom_en_v.get()
+        SETTINGS.zoom_target  = self._zoom_tgt_v.get() / 100.0
+        SETTINGS.zoom_dead    = self._zoom_dead_v.get() / 100.0
+        SETTINGS.zoom_speed   = self._zoom_spd_v.get()
+        SETTINGS.latency_comp = self._lat_v.get()
+        SETTINGS.lost_timeout = self._lost_v.get()
+
+        if self._thread and self._thread.running:
+            new_url = (f"rtsp://{SETTINGS.rtsp_user}:{SETTINGS.rtsp_pass}"
+                       f"@{SETTINGS.camera_ip}/{SETTINGS.rtsp_stream}")
+            if new_url != getattr(self, '_last_url', None):
+                self._thread.tracking = False
+                self._thread.stop()
+                self._thread = None
+                self._last_url = new_url
+                self.root.after(800, self._on_start)
+
+        self._last_url = (f"rtsp://{SETTINGS.rtsp_user}:{SETTINGS.rtsp_pass}"
+                          f"@{SETTINGS.camera_ip}/{SETTINGS.rtsp_stream}")
+        SETTINGS.save()
+
+    # ── Preview update loop ───────────────────────────────────
+
+    def _update_preview(self):
+        try:
+            if self._thread and self._thread.latest_frame is not None:
+                with self._thread._frame_lock:
+                    frame = self._thread.latest_frame.copy()
+
+                detection = self._thread.latest_detection
+                h, w = frame.shape[:2]
+
+                cv2.line(frame, (w//2-20, h//2), (w//2+20, h//2), (0,255,0), 1)
+                cv2.line(frame, (w//2, h//2-20), (w//2, h//2+20), (0,255,0), 1)
+
+                if detection:
+                    dcx, dcy, dw, dh = detection
+                    x0 = int((dcx - dw/2) * w); y0 = int((dcy - dh/2) * h)
+                    x1 = int((dcx + dw/2) * w); y1 = int((dcy + dh/2) * h)
+                    cv2.rectangle(frame, (x0,y0), (x1,y1), (0,200,255), 2)
+                    cv2.circle(frame, (int(dcx*w), int(dcy*h)), 5, (0,200,255), -1)
+
+                status = self._thread.status if self._thread else "STOPPED"
+                color  = (0,255,0) if status == "TRACKING" else (0,165,255)
+                cv2.putText(frame, status, (10,25),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2, cv2.LINE_AA)
+
+                if self._thread and self.tracker:
+                    z = self.tracker._prev_zoom
+                    zlbl = "ZOOM IN" if z==1 else ("ZOOM OUT" if z==-1 else "")
+                    if zlbl:
+                        cv2.putText(frame, zlbl, (10,50),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,200,0), 1, cv2.LINE_AA)
+
+                cw = max(self.canvas.winfo_width(),  self.PREVIEW_W)
+                ch = max(self.canvas.winfo_height(), self.PREVIEW_H)
+                display = cv2.resize(frame, (cw, ch))
+                img   = Image.fromarray(cv2.cvtColor(display, cv2.COLOR_BGR2RGB))
+                imgtk = ImageTk.PhotoImage(image=img)
+                self.canvas.imgtk = imgtk
+                self.canvas.delete("all")
+                self.canvas.create_image(0, 0, anchor=tk.NW, image=imgtk)
+
+                st = self._thread.status if self._thread else "STOPPED"
+                if st == "TRACKING":
+                    self.status_var.set("● TRACKING")
+                    self._status_lbl.configure(fg=GREEN)
+                    self._panel_status_lbl.configure(text="● TRACKING", fg=GREEN)
+                elif st == "PAUSED":
+                    self.status_var.set("● PAUSED")
+                    self._status_lbl.configure(fg=AMBER)
+                    self._panel_status_lbl.configure(text="● PAUSED", fg=AMBER)
+                else:
+                    self.status_var.set("● OFFLINE")
+                    self._status_lbl.configure(fg=FG_DIM)
+                    self._panel_status_lbl.configure(text="● OFFLINE", fg=FG_DIM)
+        except Exception:
+            pass
+
+        self.root.after(33, self._update_preview)
+
+    # ── Fullscreen ────────────────────────────────────────────
+
+    def _toggle_fullscreen(self, event=None):
+        self._fullscreen = not self._fullscreen
+        self.root.attributes("-fullscreen", self._fullscreen)
+
+    def _exit_fullscreen(self, event=None):
+        if self._fullscreen:
+            self._fullscreen = False
+            self.root.attributes("-fullscreen", False)
+
+    # ── Close ─────────────────────────────────────────────────
 
     def on_close(self):
         SETTINGS.save()
@@ -1672,7 +1871,6 @@ class App:
 # ─────────────────────────────────────────────────────────────
 
 def main():
-    # Check Pillow
     try:
         from PIL import Image, ImageTk
     except ImportError:
