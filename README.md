@@ -6,7 +6,7 @@
 ### Intelligent PTZ Auto-Tracking
 
 ![Built with AI](https://img.shields.io/badge/built%20with-AI-f5a623?style=flat-square)
-![Python](https://img.shields.io/badge/python-3.10%2B-blue?style=flat-square)
+![Python](https://img.shields.io/badge/python-3.9--3.11-blue?style=flat-square)
 ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey?style=flat-square)
 ![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)
 
@@ -23,8 +23,9 @@ Built as an open-source replacement for the PTZOptics CMP tracking feature, whic
 - Windows 10 or 11
 - PTZOptics camera with a LAN port (tested on PT12X-USB-G2)
 - Camera LAN port connected to the same network as your PC
-- Python 3.10 or newer — https://www.python.org/downloads/
+- Python 3.9–3.11 — https://www.python.org/downloads/
   - Check **Add Python to PATH** during install (only needed for source install)
+  - mediapipe 0.10.9 does not support Python 3.12+
 
 ---
 
@@ -36,16 +37,29 @@ Run `Trackmind_Setup.exe` and follow the prompts. Creates a Start Menu entry, de
 
 ### Run from Source
 
-1. Install Python 3.10+ — check **Add Python to PATH**
+1. Install Python 3.9–3.11 — check **Add Python to PATH**
 2. Double-click `INSTALL.bat` to install dependencies
 3. Double-click `START_TRACKER.bat` to launch
 
-### Build Your Own Installer
+### Build Your Own EXE
 
-1. Run `INSTALL.bat`
-2. Run `BUILD_EXE.bat` — produces `dist\PTZ_AutoTracker.exe`
-3. Install NSIS from https://nsis.sourceforge.io/Download
-4. Run `BUILD_INSTALLER.bat` — produces `Trackmind_Setup.exe`
+1. Install Python 3.9–3.11
+2. Double-click `BUILD_EXE.bat` — installs all dependencies automatically, then produces `dist\Trackmind.exe`
+3. *(Optional)* Install NSIS from https://nsis.sourceforge.io/Download, then run `BUILD_INSTALLER.bat` to produce a `Trackmind_Setup.exe` installer
+
+---
+
+## First-Time Setup
+
+On the very first launch, TrackMind walks you through a setup wizard:
+
+1. **Camera IP** — the LAN IP of your camera (find it in your router or camera web UI)
+2. **Credentials** — RTSP username and password (default: `admin` / `admin`)
+3. **Home Preset** — the preset the camera returns to when the subject is lost (0 if not configured)
+4. **Dead Zone** — tracking sensitivity. 0.17 is recommended — increase if the camera twitches
+5. **Done** — settings are saved per Windows user account
+
+Settings are stored per user in `%USERPROFILE%\.trackmind\<username>\config.json`, so multiple users on the same PC each have independent settings.
 
 ---
 
@@ -60,7 +74,7 @@ Run `Trackmind_Setup.exe` and follow the prompts. Creates a Start Menu entry, de
 **RTSP stream URLs:**
 ```
 Main stream (1080p): rtsp://admin:admin@[camera-ip]/1
-Sub stream  (720p):  rtsp://admin:admin@[camera-ip]/2  ← recommended
+Sub stream  (720p):  rtsp://admin:admin@[camera-ip]/2  ← recommended (default)
 ```
 
 ---
@@ -69,73 +83,85 @@ Sub stream  (720p):  rtsp://admin:admin@[camera-ip]/2  ← recommended
 
 The app connects to the camera automatically on startup. The preview shows **NO SIGNAL** until the stream connects (2–5 seconds).
 
+### Main Panel
+
+The left panel is kept minimal — only the controls you need during a shoot:
+
+| Control | Description |
+|---------|-------------|
+| Camera IP | LAN IP of your camera |
+| Username | RTSP username |
+| Password | RTSP password |
+| Home Preset | Preset recalled when subject is lost |
+| **TRACKING** button | Green = tracking on. Camera follows whoever is in frame |
+| **LOCK** button | Amber = locked on. Camera ignores everyone except the current subject |
+| **SETTINGS** button | Opens the full settings panel |
+
 ### Tracking Button
-Starts and stops auto-tracking. When ON (green) the camera follows whoever is detected in frame. When OFF the camera stops moving and you have full manual control via joystick, Stream Deck, vMix, or any other controller.
+When ON (green) the camera follows whoever MediaPipe detects in frame. When OFF the camera stops moving and you have full manual control via joystick, Stream Deck, vMix, or any other controller.
 
 ### Lock Button
-While tracking is ON, click **LOCK** to lock onto the current subject. The camera ignores everyone else. Click again to unlock — tracking continues but freely switches to whoever is most prominent. Lock resets automatically when tracking is turned off.
+While tracking is ON, click **LOCK** to lock onto the current subject. The camera ignores everyone else. Click again to unlock. Lock resets automatically when tracking is turned off.
 
-### Settings Panel
+---
 
-**Camera**
+## Settings Panel
 
-| Field | Description |
-|-------|-------------|
-| Camera IP | LAN IP of your PTZOptics camera |
-| Username | RTSP username (default: `admin`) |
-| Password | RTSP password (default: `admin`) |
-| Stream 1/2 | `1` = main 1080p, `2` = sub 720p — use `2` for lower latency |
-| Home Preset | Preset recalled when subject is lost for 3+ seconds |
+Click **SETTINGS** to open the settings window. Changes take effect when you click **Apply Settings** or **Save**.
 
-**Pan / Tilt**
+### Profiles
 
-| Field | Description |
-|-------|-------------|
-| Pan Slow / Fast | Pan speed when slightly / far off-center (1–24) |
-| Tilt Slow / Fast | Tilt speed when slightly / far off-center (1–24) |
-| Vertical Offset | Fine-tune aim point. -7 = higher, +7 = lower, 0 = centered |
+Save and load named setting presets — useful for switching between different rooms, presenters, or camera positions.
 
-**Zoom**
+| Control | Description |
+|---------|-------------|
+| Dropdown | Select a saved profile |
+| LOAD | Apply the selected profile immediately |
+| Name entry + SAVE AS | Save current settings under a new name |
+| DEL | Delete the selected profile |
 
-| Field | Description |
-|-------|-------------|
-| Enable Auto-Zoom | Toggle auto-zoom on/off. Off = manual zoom only |
-| Target Fill % | How much frame height the person occupies. 45 = zoomed out, 80 = tight |
-| Dead Zone % | Tolerance before zoom activates. Higher = less hunting. Recommended: 20 |
-| Zoom Speed | Motor speed 0–7. Start at 1 for smooth motion |
+Profiles are stored per Windows user account alongside your settings.
 
-**Apply Settings** — applies all values to the live tracker immediately. No restart needed.
-
-**Quick Presets 1–9** — one-click preset recall buttons.
-
-### Advanced Settings
-
-Click **⚙ Advanced Settings** to expand:
+### Tracking — Pan / Tilt
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| Pan Dead Zone | 0.15 | Fraction of frame where small pan offsets are ignored. Higher = less twitching near center |
-| Tilt Dead Zone | 0.15 | Same for tilt |
-| Latency Comp | 0.40 | Seconds of look-ahead to compensate for RTSP delay. Too high = oscillation |
-| Lost Timeout | 3.0 | Seconds before camera returns to home preset when subject is missing |
+| Vertical Offset | 2 | Fine-tune aim point. -7 = top of head, +7 = feet, 0 = centered |
+| Pan Dead Zone | 0.17 | Fraction of frame where pan offsets are ignored. Higher = steadier near center |
+| Pan Slow | 2 | Pan speed when slightly off-center (1–24) |
+| Pan Fast | 5 | Pan speed when far off-center (1–24) |
+| Tilt Dead Zone | 0.17 | Same as Pan Dead Zone but for tilt |
+| Tilt Slow | 2 | Tilt speed when slightly above/below center (1–24) |
+| Tilt Fast | 5 | Tilt speed when far above/below center (1–24) |
 
-### Keyboard Shortcuts
+### Zoom
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| Enable Auto-Zoom | Off | Toggle auto-zoom. Off = manual zoom only |
+| Target Fill % | 45 | How much frame height the person occupies. 45 = wider, 80 = tight |
+| Dead Zone % | 20 | Tolerance before zoom activates. Higher = less hunting |
+| Zoom Speed | 1 | Motor speed 0–7. Start at 1 for smooth motion |
+
+### Advanced
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| Latency Comp | 0.40 | Seconds of look-ahead to compensate for RTSP delay. Too high = oscillation |
+| Lost Timeout | 2.0 | Seconds before camera returns to home preset when subject is missing |
+
+### Updates
+
+Click **Check for Updates** to check GitHub for a newer version. If one is found, TrackMind will download and install it automatically.
+
+---
+
+## Keyboard Shortcuts
 
 | Key | Action |
 |-----|--------|
 | F11 | Toggle fullscreen |
 | Esc | Exit fullscreen |
-
----
-
-## Stream Deck / vMix Integration
-
-TrackMind listens on **UDP port 9876** for external preset signals. Send a UDP packet containing `PRESET:5` (or any number) to trigger a preset from an external source.
-
-**Stream Deck example** (System: Run action):
-```
-python -c "import socket; s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); s.sendto(b'PRESET:5',('127.0.0.1',9876))"
-```
 
 ---
 
@@ -154,7 +180,7 @@ python -c "import socket; s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); s.s
 ## Troubleshooting
 
 **App opens but shows NO SIGNAL**
-- Check camera IP is correct in the Camera section
+- Check camera IP is correct in the main panel
 - Test in VLC: Media → Open Network Stream → `rtsp://admin:admin@[ip]/2`
 - Verify username and password are correct
 
@@ -164,9 +190,9 @@ python -c "import socket; s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); s.s
 - Confirm VISCA over IP is enabled in the camera web UI
 
 **Tracking is jittery or oscillating**
-- Increase Pan/Tilt Dead Zone in Advanced Settings (try 0.18 for Pan and 17 for Tilt)
-- Lower Pan Slow speed
-- Reduce Latency Comp (try 0.2)
+- Open Settings → increase Pan/Tilt Dead Zone (try 0.20–0.22)
+- Lower Pan Slow / Tilt Slow speed
+- Reduce Latency Comp in Advanced (try 0.2)
 
 **Camera goes in the wrong direction**
 - In `autotrack.py` find `pan_vel = -zone_speed(...)` and remove or add the minus sign
@@ -174,6 +200,9 @@ python -c "import socket; s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); s.s
 **EXE shows default Windows icon**
 - Make sure `trackmind_icon.ico` is in the same folder as `autotrack.py` before building
 - Rebuild with `BUILD_EXE.bat`
+
+**Setup wizard doesn't appear on first launch**
+- Delete `%USERPROFILE%\.trackmind\<your-username>\config.json` and relaunch
 
 ---
 
@@ -185,13 +214,14 @@ python -c "import socket; s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); s.s
 | mediapipe | == 0.10.9 | Pinned — newer versions removed the solutions API |
 | Pillow | >= 10.0.0 | UI image rendering |
 | numpy | >= 1.24.0 | Array operations |
+| pyinstaller | >= 6.0.0 | EXE packaging (build only) |
 
 ---
 
 ## Known Limitations
 
-- RTSP latency (1–3s) means the camera lags the subject slightly. Velocity prediction compensates but does not fully eliminate this. A direct USB connection to the camera would give zero latency.
-- MediaPipe single-pose model always detects the most visually prominent person in frame.
+- RTSP latency (1–3s) means the camera lags the subject slightly. Velocity prediction compensates but does not fully eliminate this.
+- MediaPipe single-pose model always detects the most visually prominent person in frame. Use LOCK to pin to a specific subject.
 
 ---
 

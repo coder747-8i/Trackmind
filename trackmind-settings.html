@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TrackMind – Settings Mockup</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;700&display=swap');
+
+  :root {
+    --bg:        #0d1117;
+    --panel:     #131920;
+    --border:    #1e2d3d;
+    --accent:    #f57c00;
+    --accent2:   #ff9800;
+    --dim:       #3a4a5a;
+    --text:      #c8d6e5;
+    --text-muted:#5a7080;
+    --row-hover: #1a2535;
+    --input-bg:  #0d1117;
+    --section:   #f57c0018;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Exo 2', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── TOP BAR ── */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 18px;
+    height: 44px;
+    background: #0a0f14;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .logo {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 15px;
+    color: var(--accent);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+  }
+  .logo span { color: var(--text-muted); font-size: 11px; letter-spacing: 1px; margin-left: 8px; }
+  .topbar-right { display: flex; align-items: center; gap: 14px; }
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #4caf50;
+    box-shadow: 0 0 6px #4caf5088;
+  }
+  .status-label { font-size: 11px; color: var(--text-muted); letter-spacing: 1px; }
+  .gear-btn {
+    background: none; border: 1px solid var(--border); border-radius: 4px;
+    color: var(--accent); cursor: pointer; padding: 5px 8px; font-size: 15px;
+    transition: background .15s, border-color .15s;
+  }
+  .gear-btn:hover { background: var(--accent)18; border-color: var(--accent); }
+
+  /* ── BODY ── */
+  .app-body {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* ── LEFT SIDEBAR ── */
+  .sidebar {
+    width: 160px;
+    background: #0a0f14;
+    border-right: 1px solid var(--border);
+    padding: 16px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  .sidebar label {
+    font-size: 10px; color: var(--text-muted); text-transform: uppercase;
+    letter-spacing: 1px; padding: 0 4px; margin-top: 4px;
+  }
+  .sidebar input {
+    width: 100%; background: var(--input-bg); border: 1px solid var(--dim);
+    border-radius: 3px; color: var(--text); font-family: 'Exo 2', sans-serif;
+    font-size: 12px; padding: 5px 8px; outline: none;
+  }
+  .sidebar input:focus { border-color: var(--accent); }
+  .sidebar-btn {
+    width: 100%; padding: 7px 0; border-radius: 3px; font-size: 12px;
+    font-family: 'Exo 2', sans-serif; font-weight: 600; letter-spacing: 1px;
+    cursor: pointer; text-transform: uppercase; transition: all .15s;
+    border: 1px solid var(--dim); background: transparent; color: var(--text);
+  }
+  .sidebar-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent)12; }
+  .sidebar-btn.primary { border-color: var(--accent); color: var(--accent); }
+  .sidebar-btn.primary:hover { background: var(--accent); color: #000; }
+
+  /* ── MAIN CONTENT ── */
+  .main {
+    flex: 1;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg);
+    /* subtle grid */
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 40px 40px;
+    background-position: -1px -1px;
+  }
+
+  /* ── SETTINGS OVERLAY ── */
+  .settings-overlay {
+    position: absolute;
+    inset: 0;
+    background: #000000aa;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+  }
+
+  .settings-panel {
+    width: 520px;
+    max-height: 72vh;
+    background: var(--panel);
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    box-shadow: 0 0 40px #f57c0033, 0 8px 32px #00000088;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* panel header */
+  .sp-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 11px 16px;
+    background: #0a0f14;
+    border-bottom: 1px solid var(--accent)55;
+    flex-shrink: 0;
+  }
+  .sp-title {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 13px; color: var(--accent); letter-spacing: 2px; text-transform: uppercase;
+  }
+  .sp-close {
+    background: none; border: none; color: var(--text-muted); font-size: 18px;
+    cursor: pointer; line-height: 1; padding: 0 2px;
+    transition: color .15s;
+  }
+  .sp-close:hover { color: var(--accent); }
+
+  /* scrollable body */
+  .sp-body {
+    overflow-y: auto;
+    flex: 1;
+    padding: 0;
+  }
+  .sp-body::-webkit-scrollbar { width: 5px; }
+  .sp-body::-webkit-scrollbar-track { background: transparent; }
+  .sp-body::-webkit-scrollbar-thumb { background: var(--dim); border-radius: 3px; }
+  .sp-body::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+  /* section headers */
+  .sp-section {
+    padding: 8px 16px 4px;
+    background: var(--section);
+    border-bottom: 1px solid var(--border);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  /* rows */
+  .sp-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 9px 16px;
+    border-bottom: 1px solid var(--border);
+    transition: background .12s;
+  }
+  .sp-row:hover { background: var(--row-hover); }
+  .sp-row:last-child { border-bottom: none; }
+
+  .sp-row-label {
+    font-size: 13px;
+    color: var(--text);
+    letter-spacing: 0.5px;
+  }
+  .sp-row-label small {
+    display: block;
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: 1px;
+  }
+
+  .sp-row-val {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* number input */
+  .val-input {
+    width: 64px; text-align: right;
+    background: var(--input-bg); border: 1px solid var(--dim);
+    border-radius: 3px; color: var(--accent2);
+    font-family: 'Share Tech Mono', monospace; font-size: 13px;
+    padding: 4px 8px; outline: none;
+    transition: border-color .15s;
+  }
+  .val-input:focus { border-color: var(--accent); }
+
+  /* checkbox */
+  .val-check {
+    width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer;
+  }
+
+  /* toggle */
+  .val-toggle {
+    position: relative; width: 34px; height: 18px;
+    background: var(--dim); border-radius: 9px; cursor: pointer;
+    transition: background .2s;
+  }
+  .val-toggle.on { background: var(--accent); }
+  .val-toggle::after {
+    content: ''; position: absolute; top: 2px; left: 2px;
+    width: 14px; height: 14px; border-radius: 50%; background: #fff;
+    transition: left .2s;
+  }
+  .val-toggle.on::after { left: 18px; }
+
+  /* badge */
+  .val-badge {
+    font-size: 10px; padding: 2px 8px; border-radius: 10px;
+    background: var(--accent)22; color: var(--accent); letter-spacing: 1px;
+    font-weight: 600; text-transform: uppercase;
+  }
+
+  /* panel footer */
+  .sp-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 10px 16px;
+    border-top: 1px solid var(--border);
+    background: #0a0f14;
+    flex-shrink: 0;
+  }
+  .btn {
+    padding: 6px 18px; border-radius: 3px; font-size: 12px;
+    font-family: 'Exo 2', sans-serif; font-weight: 600; letter-spacing: 1px;
+    text-transform: uppercase; cursor: pointer; transition: all .15s;
+  }
+  .btn-ghost {
+    border: 1px solid var(--dim); background: transparent; color: var(--text-muted);
+  }
+  .btn-ghost:hover { border-color: var(--text-muted); color: var(--text); }
+  .btn-primary {
+    border: 1px solid var(--accent); background: var(--accent); color: #000;
+  }
+  .btn-primary:hover { background: var(--accent2); border-color: var(--accent2); }
+  .btn-secondary {
+    border: 1px solid var(--accent); background: transparent; color: var(--accent);
+  }
+  .btn-secondary:hover { background: var(--accent)18; }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="logo">TrackMind <span>// intelligent tracking</span></div>
+  <div class="topbar-right">
+    <div class="status-dot"></div>
+    <span class="status-label">CONNECTED</span>
+    <button class="gear-btn" title="Settings">⚙</button>
+  </div>
+</div>
+
+<!-- APP BODY -->
+<div class="app-body">
+
+  <!-- LEFT SIDEBAR -->
+  <div class="sidebar">
+    <label>Camera IP</label>
+    <input type="text" placeholder="192.168.1.100">
+    <label>Username</label>
+    <input type="text" placeholder="admin">
+    <label>Password</label>
+    <input type="password" placeholder="••••••••">
+    <label>Home Preset</label>
+    <input type="text" placeholder="1">
+    <div style="margin-top:6px; display:flex; flex-direction:column; gap:6px;">
+      <button class="sidebar-btn primary">Tracking</button>
+      <button class="sidebar-btn">Lock</button>
+      <button class="sidebar-btn">Auto Zoom</button>
+    </div>
+  </div>
+
+  <!-- MAIN (camera feed placeholder) -->
+  <div class="main">
+    <div style="color:#1e2d3d; font-family:'Share Tech Mono',monospace; font-size:12px; letter-spacing:2px; text-align:center; user-select:none;">
+      [ CAMERA FEED ]<br><br>
+      <span style="font-size:10px; color:#1a2535">1920 × 1080 · H.264</span>
+    </div>
+
+    <!-- SETTINGS OVERLAY -->
+    <div class="settings-overlay">
+      <div class="settings-panel">
+
+        <!-- Header -->
+        <div class="sp-header">
+          <span class="sp-title">⚙ TrackMind Settings</span>
+          <button class="sp-close">✕</button>
+        </div>
+
+        <!-- Scrollable body -->
+        <div class="sp-body">
+
+          <!-- MOVEMENT -->
+          <div class="sp-section">Movement</div>
+
+          <div class="sp-row">
+            <div class="sp-row-label">Pan<small>Horizontal axis speed</small></div>
+            <div class="sp-row-val"><input class="val-input" type="number" value="50"></div>
+          </div>
+          <div class="sp-row">
+            <div class="sp-row-label">Tilt<small>Vertical axis speed</small></div>
+            <div class="sp-row-val"><input class="val-input" type="number" value="50"></div>
+          </div>
+          <div class="sp-row">
+            <div class="sp-row-label">Vertical Offset<small>Y tracking center offset</small></div>
+            <div class="sp-row-val"><input class="val-input" type="number" value="0"></div>
+          </div>
+          <div class="sp-row">
+            <div class="sp-row-label">Offset<small>General tracking offset</small></div>
+            <div class="sp-row-val"><input class="val-input" type="number" value="0"></div>
+          </div>
+
+          <!-- DEAD ZONES -->
+          <div class="sp-section">Dead Zones</div>
+
+          <div class="sp-row">
+            <div class="sp-row-label">Pan Dead Zone<small>Min movement threshold</small></div>
+            <div class="sp-row-val"><input class="val-input" type="number" value="5"></div>
+          </div>
+          <div class="sp-row">
+            <div class="sp-row-label">Pan Slow<small>Low-speed pan threshold</small></div>
+            <div class="sp-row-val"><input class="val-input" type="number" value="15"></div>
+          </div>
+          <div class="sp-row">
+            <div class="sp-row-label">Pan Fast<small>High-speed pan threshold</small></div>
+            <div class="sp-row-val"><input class="val-input" type="number" value="80"></div>
+          </div>
+          <div class="sp-row">
+            <div class="sp-row-label">Tilt Dead Zone<small>Min tilt threshold</small></div>
+            <div class="sp-row-val"><input class="val-input" type="number" value="5"></div>
+          </div>
+          <div class="sp-row">
+            <div class="sp-row-label">Tilt Slow<small>Low-speed tilt threshold</small></div>
+            <div class="sp-row-val"><input class="val-input" type="number" value="15"></div>
+          </div>
+          <div class="sp-row">
+            <div class="sp-row-label">Tilt Fast<small>High-speed tilt threshold</small></div>
+            <div class="sp-row-val"><input class="val-input" type="number" value="80"></div>
+          </div>
+
+          <!-- PROFILES & ZOOM -->
+          <div class="sp-section">Profiles &amp; Zoom</div>
+
+          <div class="sp-row">
+            <div class="sp-row-label">Profiles<small>Active tracking profile</small></div>
+            <div class="sp-row-val">
+              <select style="background:var(--input-bg);border:1px solid var(--dim);color:var(--accent2);font-family:'Share Tech Mono',monospace;font-size:12px;padding:4px 8px;border-radius:3px;outline:none;">
+                <option>Default</option>
+                <option>Presenter</option>
+                <option>Sport</option>
+              </select>
+            </div>
+          </div>
+          <div class="sp-row">
+            <div class="sp-row-label">Zoom<small>Auto-zoom multiplier</small></div>
+            <div class="sp-row-val"><input class="val-input" type="number" value="1"></div>
+          </div>
+
+          <!-- ADVANCED -->
+          <div class="sp-section">Advanced</div>
+
+          <div class="sp-row">
+            <div class="sp-row-label">Advanced Mode<small>Unlock extended parameters</small></div>
+            <div class="sp-row-val"><div class="val-toggle" onclick="this.classList.toggle('on')"></div></div>
+          </div>
+
+          <!-- UPDATES -->
+          <div class="sp-section">Updates</div>
+
+          <div class="sp-row">
+            <div class="sp-row-label">Current Version<small>Installed firmware</small></div>
+            <div class="sp-row-val"><span class="val-badge">v2.4.1</span></div>
+          </div>
+          <div class="sp-row">
+            <div class="sp-row-label">Check for Updates<small>Fetch latest release</small></div>
+            <div class="sp-row-val"><button class="btn btn-ghost" style="padding:4px 12px;font-size:11px;">Check</button></div>
+          </div>
+
+        </div><!-- /sp-body -->
+
+        <!-- Footer -->
+        <div class="sp-footer">
+          <button class="btn btn-ghost">Cancel</button>
+          <button class="btn btn-secondary">Apply Settings</button>
+          <button class="btn btn-primary">Save</button>
+        </div>
+
+      </div><!-- /settings-panel -->
+    </div><!-- /settings-overlay -->
+
+  </div><!-- /main -->
+</div><!-- /app-body -->
+
+</body>
+</html>
