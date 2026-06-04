@@ -56,9 +56,18 @@ jobs:
           /DAPP_VERSION_4=${{ steps.ver.outputs.version4 }}
           installer.nsi
 
+      - name: Create source archive
+        shell: bash
+        run: |
+          git archive --format=zip \
+            --prefix=Trackmind-v${{ steps.ver.outputs.version }}/ \
+            HEAD -o Trackmind-v${{ steps.ver.outputs.version }}-source.zip
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           name: Trackmind v${{ steps.ver.outputs.version }}
           body: ${{ steps.ver.outputs.notes }}
-          files: Trackmind_Setup.exe
+          files: |
+            Trackmind_Setup.exe
+            Trackmind-v${{ steps.ver.outputs.version }}-source.zip
