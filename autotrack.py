@@ -402,7 +402,10 @@ class Updater:
             self.app.status_var.set("INSTALLING...")
             self.app.root.update()
 
-            subprocess.Popen([tmp_path, "/S"])
+            import ctypes
+            ret = ctypes.windll.shell32.ShellExecuteW(None, "runas", tmp_path, "/S", None, 1)
+            if ret <= 32:
+                raise OSError(f"Could not launch installer (code {ret}) — try running as administrator")
             self.app.root.after(1500, self.app.on_close)
 
         except Exception as e:
