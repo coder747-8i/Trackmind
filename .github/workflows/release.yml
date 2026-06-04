@@ -32,6 +32,14 @@ jobs:
           echo "version4=$VER4" >> $GITHUB_OUTPUT
           echo "Version: $VER   PE: $VER4"
 
+          # Extract this version's section from CHANGELOG.md
+          NOTES=$(awk "/^## v${VER}[^0-9]/{found=1; next} /^## /{if(found) exit} found{print}" CHANGELOG.md)
+          {
+            echo "notes<<EOF"
+            echo "$NOTES"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+
       - name: Install Python dependencies
         run: pip install -r requirements.txt
 
@@ -52,5 +60,5 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           name: Trackmind v${{ steps.ver.outputs.version }}
+          body: ${{ steps.ver.outputs.notes }}
           files: Trackmind_Setup.exe
-          generate_release_notes: true
