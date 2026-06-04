@@ -1,0 +1,56 @@
+name: Build & Release
+
+# Triggers when you push a version tag: git tag v1.2 && git push origin v1.2
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write   # needed to create the GitHub Release
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Read version from version.txt
+        id: ver
+        shell: bash
+        run: |
+          VER=$(sed 's/^[vV]//' version.txt | tr -d '[:space:]')
+          VER4=$(echo "${VER}.0.0.0" | cut -d. -f1-4)
+          echo "version=$VER"   >> $GITHUB_OUTPUT
+          echo "version4=$VER4" >> $GITHUB_OUTPUT
+          echo "Version: $VER   PE: $VER4"
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Build EXE with PyInstaller
+        run: pyinstaller Trackmind.spec
+
+      - name: Install NSIS
+        run: choco install nsis --no-progress -y
+
+      - name: Build installer
+        run: >
+          & "C:\Program Files (x86)\NSIS\makensis.exe"
+          /DAPP_VERSION=${{ steps.ver.outputs.version }}
+          /DAPP_VERSION_4=${{ steps.ver.outputs.version4 }}
+          installer.nsi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Trackmind v${{ steps.ver.outputs.version }}
+          files: Trackmind_Setup.exe
+          generate_release_notes: true
