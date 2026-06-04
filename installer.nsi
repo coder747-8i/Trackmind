@@ -1,6 +1,17 @@
 ; Trackmind — NSIS Installer Script
 ; Requires NSIS installed: https://nsis.sourceforge.io/Download
 ; Build the exe first with BUILD_EXE.bat, then compile this with NSIS.
+;
+; Version is passed in automatically by BUILD_INSTALLER.bat from version.txt:
+;   makensis /DAPP_VERSION=1.1 /DAPP_VERSION_4=1.1.0.0 installer.nsi
+; Fallback defaults below are used only if compiling manually without /D flags.
+
+!ifndef APP_VERSION
+  !define APP_VERSION "1.2"
+!endif
+!ifndef APP_VERSION_4
+  !define APP_VERSION_4 "1.2.0.0"
+!endif
 
 ;--------------------------------
 ; General
@@ -15,10 +26,10 @@ SetCompressor /SOLID lzma
 ;--------------------------------
 ; Version info shown in installer
 
-VIProductVersion "1.0.0.1"
+VIProductVersion "${APP_VERSION_4}"
 VIAddVersionKey "ProductName"      "Trackmind"
 VIAddVersionKey "FileDescription"  "Trackmind Installer"
-VIAddVersionKey "FileVersion"      "1.0.0"
+VIAddVersionKey "FileVersion"      "${APP_VERSION}"
 VIAddVersionKey "LegalCopyright"   "Open Source"
 
 ;--------------------------------
@@ -71,7 +82,7 @@ Section "Install" SecMain
     "UninstallString" '"$INSTDIR\Uninstall.exe"'
   WriteRegStr HKLM \
     "Software\Microsoft\Windows\CurrentVersion\Uninstall\Trackmind" \
-    "DisplayVersion" "1.0.0"
+    "DisplayVersion" "${APP_VERSION}"
   WriteRegStr HKLM \
     "Software\Microsoft\Windows\CurrentVersion\Uninstall\Trackmind" \
     "Publisher" "Open Source"

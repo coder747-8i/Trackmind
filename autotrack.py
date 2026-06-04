@@ -41,12 +41,19 @@ from PIL import Image, ImageTk  # pip install Pillow
 
 
 def _read_version():
-    base = sys._MEIPASS if getattr(sys, 'frozen', False) else os.path.dirname(os.path.abspath(__file__))
-    try:
-        with open(os.path.join(base, "version.txt")) as f:
-            return f.read().strip().lstrip("v")
-    except Exception:
-        return "unknown"
+    if getattr(sys, 'frozen', False):
+        bases = [sys._MEIPASS]
+    else:
+        bases = [os.path.dirname(os.path.abspath(__file__)), os.getcwd()]
+    for base in bases:
+        try:
+            with open(os.path.join(base, "version.txt")) as f:
+                ver = f.read().strip().lstrip("v")
+                if ver:
+                    return ver
+        except Exception:
+            pass
+    return "unknown"
 
 VERSION = _read_version()
 GITHUB_REPO = "coder747-8i/Trackmind"  # ← update this
@@ -1277,6 +1284,8 @@ class App:
                          highlightcolor=AMBER, highlightbackground=BORDER, **kw)
             e.pack(fill=tk.X)
             if tooltip_text: tip(e, tooltip_text)
+            e.bind("<Return>",   lambda ev: self._apply_settings())
+            e.bind("<FocusOut>", lambda ev: self._apply_settings())
             return e
 
         stacked("Camera IP",   self._ip_var,
@@ -1290,12 +1299,15 @@ class App:
         pre_f.pack(fill=tk.X, padx=8, pady=(4, 0))
         tk.Label(pre_f, text="Home Preset", bg=BG2, fg=FG_DIM,
                  font=(FONT, 7), anchor="w").pack(fill=tk.X)
-        tk.Spinbox(pre_f, from_=0, to=89, textvariable=self._pre_var,
-                   width=5, bg=BG3, fg=FG,
-                   insertbackground=AMBER, buttonbackground=BG3,
-                   relief=tk.FLAT, font=(FONT, 10, "bold"),
-                   highlightthickness=1, highlightbackground=BORDER,
-                   highlightcolor=AMBER).pack(anchor="w")
+        _pre_sb = tk.Spinbox(pre_f, from_=0, to=89, textvariable=self._pre_var,
+                             width=5, bg=BG3, fg=FG,
+                             insertbackground=AMBER, buttonbackground=BG3,
+                             relief=tk.FLAT, font=(FONT, 10, "bold"),
+                             highlightthickness=1, highlightbackground=BORDER,
+                             highlightcolor=AMBER)
+        _pre_sb.pack(anchor="w")
+        _pre_sb.bind("<Return>",   lambda ev: self._apply_settings())
+        _pre_sb.bind("<FocusOut>", lambda ev: self._apply_settings())
 
         tk.Frame(p, bg=BORDER, height=1).pack(fill=tk.X, padx=8, pady=8)
 
