@@ -387,6 +387,34 @@ class Updater:
                 f"Download it manually from:\n{self.RELEASES_URL}"
             )
 
+    # ShellExecute return values <= 32 are error codes. Map the ones we
+    # actually hit to plain-English causes so a failed update tells the user
+    # what went wrong instead of just vanishing.
+    _SHELLEXEC_ERRORS = {
+        0:  "The system is out of memory or resources.",
+        2:  "The installer file could not be found.",
+        3:  "The installer path could not be found.",
+        5:  "Windows blocked the installer, or you clicked \"No\" on the "
+            "User Account Control (admin) prompt. Click Yes when it appears.",
+        8:  "Not enough memory to start the installer.",
+        26: "A sharing violation occurred (the file may be locked by "
+            "antivirus). Try again, or install manually.",
+        31: "No application is associated with the installer file.",
+    }
+
+    def _strip_mark_of_the_web(self, path):
+        """
+        Remove the 'downloaded from the internet' tag (the Zone.Identifier
+        NTFS alternate data stream). Without this, Windows SmartScreen can
+        silently block an unsigned installer launched non-interactively —
+        which looks exactly like 'the installer flashed and nothing happened'.
+        Harmless if the stream isn't present.
+        """
+        try:
+            os.remove(path + ":Zone.Identifier")
+        except OSError:
+            pass
+
     def _download_and_install(self, url):
         try:
             self.app.status_var.set("DOWNLOADING UPDATE...")
@@ -403,7 +431,22 @@ class Updater:
                     self.app.status_var.set(f"DOWNLOADING... {min(pct, 100)}%")
                     self.app.root.update()
 
-            urllib.request.urlretrieve(url, tmp_path, reporthook)
+            _, headers = urllib.request.urlretrieve(url, tmp_path, reporthook)
+
+            # Verify the download actually completed — a truncated or empty
+            # file would otherwise launch and silently do nothing.
+            actual = os.path.getsize(tmp_path)
+            expected = headers.get("Content-Length")
+            if actual < 1_000_000 or (expected and actual < int(expected)):
+                raise OSError(
+                    f"The download was incomplete ({actual} bytes"
+                    + (f" of {expected}" if expected else "")
+                    + "). Check your connection and try again."
+                )
+
+            # Clear the Mark-of-the-Web so SmartScreen doesn't silently block
+            # the silent/elevated launch below.
+            self._strip_mark_of_the_web(tmp_path)
 
             self.app.status_var.set("INSTALLING...")
             self.app.root.update()
@@ -416,7 +459,9 @@ class Updater:
             import ctypes
             ret = ctypes.windll.shell32.ShellExecuteW(None, "runas", tmp_path, "/S", None, 1)
             if ret <= 32:
-                raise OSError(f"Could not launch installer (code {ret}) — try running as administrator")
+                reason = self._SHELLEXEC_ERRORS.get(
+                    int(ret), f"The installer could not be started (code {ret}).")
+                raise OSError(reason)
             self.app.status_var.set("UPDATING — APP WILL RESTART...")
             self.app.root.update()
             self.app.root.after(800, self.app.on_close)
@@ -424,8 +469,9 @@ class Updater:
         except Exception as e:
             messagebox.showerror(
                 "Update Failed",
-                f"Could not download update:\n{e}\n\n"
-                f"Download manually from:\n{self.RELEASES_URL}"
+                f"The update could not be installed automatically.\n\n{e}\n\n"
+                f"You can always download and run the installer manually from:\n"
+                f"{self.RELEASES_URL}"
             )
             self._restore_status()
 

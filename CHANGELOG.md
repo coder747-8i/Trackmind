@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.5 — 2026-06-21
+
+### Fixes
+- **Hardened the auto-updater.** The downloaded installer now has its Mark-of-the-Web (the "downloaded from the internet" tag) stripped before launch, so Windows SmartScreen no longer silently blocks the silent/elevated install. The updater also verifies the download finished (catching truncated/empty files) and now reports a clear reason when an update can't start — including when the User Account Control prompt is declined — instead of failing silently.
+
+---
+
 ## v1.4 — 2026-06-21
 
 ### Fixes
