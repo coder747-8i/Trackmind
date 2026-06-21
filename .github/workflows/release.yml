@@ -32,13 +32,40 @@ jobs:
           echo "version4=$VER4" >> $GITHUB_OUTPUT
           echo "Version: $VER   PE: $VER4"
 
-          # Extract this version's section from CHANGELOG.md
-          NOTES=$(awk "/^## v${VER}[^0-9]/{found=1; next} /^## /{if(found) exit} found{print}" CHANGELOG.md)
-          {
-            echo "notes<<EOF"
-            echo "$NOTES"
-            echo "EOF"
-          } >> $GITHUB_OUTPUT
+      - name: Build release notes from CHANGELOG.md
+        shell: bash
+        run: |
+          VER="${{ steps.ver.outputs.version }}"
+
+          # Extract this version's section: match the "## vX.Y[.Z]" header
+          # (whether or not a date follows it), capture until the next "## "
+          # header, drop horizontal-rule lines, and trim blank lines off both
+          # ends. The version's dots are escaped so they match literally.
+          awk -v ver="$VER" '
+            BEGIN { gsub(/\./, "\\.", ver); pat = "^## v" ver "([^0-9]|$)" }
+            !found && $0 ~ pat { found=1; next }
+            found && /^## /    { done=1 }
+            found && !done {
+              if ($0 ~ /^---[[:space:]]*$/) next
+              buf[n++] = $0
+            }
+            END {
+              s=0;   while (s < n  && buf[s] ~ /^[[:space:]]*$/) s++
+              e=n-1; while (e >= s && buf[e] ~ /^[[:space:]]*$/) e--
+              for (i=s; i<=e; i++) print buf[i]
+            }
+          ' CHANGELOG.md > RELEASE_NOTES.md
+
+          # Fallback so the release is never published with an empty body.
+          if [ ! -s RELEASE_NOTES.md ]; then
+            echo "No changelog entry found for v$VER."
+            printf 'Trackmind v%s\n\nSee [CHANGELOG.md](https://github.com/%s/blob/main/CHANGELOG.md) for details.\n' \
+              "$VER" "$GITHUB_REPOSITORY" > RELEASE_NOTES.md
+          fi
+
+          echo "----- release notes -----"
+          cat RELEASE_NOTES.md
+          echo "-------------------------"
 
       - name: Install Python dependencies
         run: pip install -r requirements.txt
@@ -67,7 +94,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           name: Trackmind v${{ steps.ver.outputs.version }}
-          body: ${{ steps.ver.outputs.notes }}
+          body_path: RELEASE_NOTES.md
           files: |
             Trackmind_Setup.exe
             Trackmind-v${{ steps.ver.outputs.version }}-source.zip

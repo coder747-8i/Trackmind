@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.3 — 2026-06-21
+
+### Changes
+- **Smoother tracking motion.** The pan/tilt controller now uses continuous proportional speed instead of snapping between discrete slow/fast steps, and ramps acceleration and deceleration so the camera eases into and out of moves rather than jerking. The result is noticeably more cinematic following.
+  - New **Motion Smoothing** setting (0–10, default 5) under MOVEMENT tunes how gentle the accel/decel ramps are. 0 restores the old instant behavior; 10 is silkiest (slightly slower to react).
+- Added **Motion Sync** setting — when enabled, the PTZOptics camera scales each axis's speed so pan, tilt, and zoom all reach a recalled preset at the same moment, producing smooth, coordinated motion instead of one axis finishing early. Toggle it in the settings panel under the new **Motion Sync** section. The state is saved per profile and applied to the camera on connect.
+
+---
+
 ## v1.2 — 2026-06-03
 
 ### Fixes

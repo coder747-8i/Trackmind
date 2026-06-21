@@ -133,6 +133,7 @@ Profiles are stored per Windows user account alongside your settings.
 | Tilt Dead Zone | 0.17 | Same as Pan Dead Zone but for tilt |
 | Tilt Slow | 2 | Tilt speed when slightly above/below center (1–24) |
 | Tilt Fast | 5 | Tilt speed when far above/below center (1–24) |
+| Motion Smoothing | 5 | How gently the camera ramps speed up and down. 0 = instant (snappy), 10 = silkiest/most cinematic (slightly slower to react). Pan/tilt speed is also proportional and eased, so there's no visible "gear change" between slow and fast |
 
 ### Zoom
 
@@ -142,6 +143,12 @@ Profiles are stored per Windows user account alongside your settings.
 | Target Fill % | 45 | How much frame height the person occupies. 45 = wider, 80 = tight |
 | Dead Zone % | 20 | Tolerance before zoom activates. Higher = less hunting |
 | Zoom Speed | 1 | Motor speed 0–7. Start at 1 for smooth motion |
+
+### Motion Sync
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| Motion Sync | Off | When enabled, the camera coordinates pan, tilt, and zoom so all three axes reach a recalled preset at the same moment — smooth, synchronized motion instead of one axis arriving early. Requires a PTZOptics camera with Motion Sync support. The setting is saved per profile and pushed to the camera on connect. |
 
 ### Advanced
 
@@ -171,7 +178,8 @@ Click **Check for Updates** to check GitHub for a newer version. If one is found
 2. Each frame is processed by **MediaPipe Pose** — a local AI model, no internet required
 3. A dedicated buffer thread drains the RTSP stream continuously, keeping only the latest frame to prevent lag buildup
 4. Velocity prediction estimates where the subject is heading to compensate for RTSP latency
-5. **VISCA over IP** pan/tilt/zoom commands are sent to the camera's LAN port (TCP 5678)
+5. Pan/tilt speed is computed **proportionally** to how far off-center the subject is, then **slew-rate limited** so the camera eases into and out of every move instead of snapping between fixed speeds — this is what makes the motion look smooth
+6. **VISCA over IP** pan/tilt/zoom commands are sent to the camera's LAN port (TCP 5678)
 
 **Lock-on:** When LOCK is active, the detector only follows detections within 25% of the frame distance from the last known position of the locked subject. Anyone else is ignored.
 

@@ -85,6 +85,9 @@ class Settings:
         self.zoom_dead    = 0.20
         self.zoom_speed   = 1
 
+        self.motion_sync  = False   # PTZOptics: sync pan/tilt/zoom to arrive together
+        self.motion_smooth = 5      # 0=off (snap), 1..10 = gentler accel/decel ramps
+
         self.latency_comp = 0.4
         self.lost_timeout = 2.0
 
@@ -129,6 +132,8 @@ class Settings:
             "zoom_target":  self.zoom_target,
             "zoom_dead":    self.zoom_dead,
             "zoom_speed":   self.zoom_speed,
+            "motion_sync":  self.motion_sync,
+            "motion_smooth": self.motion_smooth,
             "latency_comp": self.latency_comp,
             "lost_timeout": self.lost_timeout,
             "track_offset": self.track_offset,
@@ -166,6 +171,7 @@ class Settings:
             "tilt_dead": self.tilt_dead, "tilt_slow": self.tilt_slow, "tilt_fast": self.tilt_fast,
             "zoom_enabled": self.zoom_enabled, "zoom_target": self.zoom_target,
             "zoom_dead": self.zoom_dead, "zoom_speed": self.zoom_speed,
+            "motion_sync": self.motion_sync, "motion_smooth": self.motion_smooth,
             "latency_comp": self.latency_comp, "lost_timeout": self.lost_timeout,
             "track_offset": self.track_offset,
         }
@@ -509,6 +515,20 @@ class VISCAController:
     def home(self):
         return self._send(bytes([0x81, 0x01, 0x06, 0x04, 0xFF]))
 
+    def set_motion_sync(self, on: bool):
+        """
+        PTZOptics Motion Sync: when enabled, the camera scales each axis's
+        speed so pan, tilt, and zoom all reach a recalled preset at the same
+        moment — producing smooth, coordinated motion instead of one axis
+        finishing early. Camera-side setting; persists until changed.
+        VISCA: 8x 0A 11 13 02 FF (on) / 03 FF (off)
+        """
+        payload = 0x02 if on else 0x03
+        ok = self._send(bytes([0x81, 0x0A, 0x11, 0x13, payload, 0xFF]))
+        if ok:
+            print(f"[VISCA] Motion Sync {'ON' if on else 'OFF'}")
+        return ok
+
 
 # ─────────────────────────────────────────────────────────────
 # Zone speed helper
@@ -520,6 +540,27 @@ def zone_speed(pos, dead, near, slow, fast) -> int:
     if mag < dead:
         return 0
     speed = slow if mag < near else fast
+    return speed if err > 0 else -speed
+
+
+def smooth_speed(pos, dead, slow, fast) -> float:
+    """
+    Continuous proportional speed (float).
+
+    Returns 0 inside the dead zone, then eases from `slow` (just outside the
+    dead zone) up to `fast` (frame edge) along a smoothstep curve. Unlike the
+    old discrete zone_speed — which snapped between slow and fast like a gear
+    change — the speed glides, so there is no visible jump as the subject
+    drifts. Sign follows the error direction.
+    """
+    err = pos - 0.5
+    mag = abs(err)
+    if mag < dead:
+        return 0.0
+    span  = max(1e-6, 0.5 - dead)
+    norm  = min(1.0, (mag - dead) / span)
+    eased = norm * norm * (3.0 - 2.0 * norm)   # smoothstep, 0..1
+    speed = slow + (fast - slow) * eased
     return speed if err > 0 else -speed
 
 
@@ -640,7 +681,7 @@ class PersonDetector:
 # ─────────────────────────────────────────────────────────────
 
 class AutoTracker:
-    CMD_INTERVAL = 0.15
+    CMD_INTERVAL = 0.10   # min seconds between VISCA move commands (anti-flood)
 
     def __init__(self, visca: VISCAController):
         self.visca         = visca
@@ -654,6 +695,19 @@ class AutoTracker:
         self._last_cy      = None
         self._vx           = 0.0
         self._vy           = 0.0
+        # Slew-rate-limited commanded speeds (float). These ease toward the
+        # proportional target instead of snapping, which is what removes the
+        # jerk from starts, stops, and speed changes.
+        self._pan_cmd      = 0.0
+        self._tilt_cmd     = 0.0
+        self._last_motion_t = time.monotonic()
+
+    @staticmethod
+    def _approach(current, target, max_delta):
+        """Step `current` toward `target` by at most `max_delta`."""
+        if target > current:
+            return min(target, current + max_delta)
+        return max(target, current - max_delta)
 
     def process(self, detection):
         if detection is None:
@@ -684,10 +738,32 @@ class AutoTracker:
         pred_cx = max(0.0, min(1.0, cx + self._vx * s.latency_comp))
         pred_cy = max(0.0, min(1.0, cy + self._vy * s.latency_comp))
 
-        pan_vel  = -zone_speed(pred_cx, s.pan_dead,  s.pan_near,  s.pan_slow,  s.pan_fast)
-        tilt_vel = -zone_speed(pred_cy, s.tilt_dead, s.tilt_near, s.tilt_slow, s.tilt_fast)
+        # Continuous proportional targets (float). Negative sign keeps the
+        # existing image->camera direction convention.
+        pan_target  = -smooth_speed(pred_cx, s.pan_dead,  s.pan_slow,  s.pan_fast)
+        tilt_target = -smooth_speed(pred_cy, s.tilt_dead, s.tilt_slow, s.tilt_fast)
 
-        if pan_vel != self._prev_pan or tilt_vel != self._prev_tilt:
+        # Slew-rate limit: ease the commanded speed toward the target so the
+        # camera accelerates and decelerates gradually. motion_smooth controls
+        # how gentle that ramp is; 0 disables it (snap straight to target).
+        dt_motion = max(0.001, min(0.25, now - self._last_motion_t))
+        self._last_motion_t = now
+        if s.motion_smooth > 0:
+            accel     = max(8.0, 120.0 / s.motion_smooth)   # speed units / second
+            max_delta = accel * dt_motion
+            self._pan_cmd  = self._approach(self._pan_cmd,  pan_target,  max_delta)
+            self._tilt_cmd = self._approach(self._tilt_cmd, tilt_target, max_delta)
+        else:
+            self._pan_cmd, self._tilt_cmd = pan_target, tilt_target
+
+        pan_vel  = int(round(self._pan_cmd))
+        tilt_vel = int(round(self._tilt_cmd))
+
+        # Rate-limited send: only when the integer speed changes and the
+        # minimum interval has elapsed — keeps the VISCA socket from flooding
+        # while still updating often enough to look continuous.
+        if (pan_vel != self._prev_pan or tilt_vel != self._prev_tilt) and \
+           (now - self._last_cmd_t) >= self.CMD_INTERVAL:
             self.visca.move(pan_vel, tilt_vel)
             self._prev_pan   = pan_vel
             self._prev_tilt  = tilt_vel
@@ -725,6 +801,8 @@ class AutoTracker:
             self._prev_zoom = 0
         self._vx = 0.0
         self._vy = 0.0
+        self._pan_cmd  = 0.0
+        self._tilt_cmd = 0.0
         self._last_cx = None
         self._last_cy = None
         if self._at_home:
@@ -737,6 +815,8 @@ class AutoTracker:
 
     def reset(self):
         self._vx = self._vy = 0.0
+        self._pan_cmd = self._tilt_cmd = 0.0
+        self._last_motion_t = time.monotonic()
         self._last_cx = self._last_cy = None
         self._prev_pan = self._prev_tilt = self._prev_zoom = 0
 
@@ -802,6 +882,7 @@ class TrackerThread(threading.Thread):
 
         visca    = VISCAController()
         visca.connect()
+        visca.set_motion_sync(SETTINGS.motion_sync)
         detector = PersonDetector()
         tracker  = AutoTracker(visca)
 
@@ -1187,6 +1268,8 @@ class App:
         self._zoom_tgt_v   = tk.IntVar(value=int(SETTINGS.zoom_target * 100))
         self._zoom_dead_v  = tk.IntVar(value=int(SETTINGS.zoom_dead  * 100))
         self._zoom_spd_v   = tk.IntVar(value=SETTINGS.zoom_speed)
+        self._motion_sync_v = tk.BooleanVar(value=SETTINGS.motion_sync)
+        self._motion_smooth_v = tk.IntVar(value=SETTINGS.motion_smooth)
         self._lat_v        = tk.DoubleVar(value=SETTINGS.latency_comp)
         self._lost_v       = tk.DoubleVar(value=SETTINGS.lost_timeout)
         self._profile_var     = tk.StringVar(value=PROFILE_MANAGER.current or "")
@@ -1561,9 +1644,31 @@ class App:
         spin_row("Tilt Speed  —  Fast", "Speed when subject is far above/below center  (1–24)",
                  1, 24, self._tilt_fast_v,
                  tooltip="Tilt speed when far above/below center (1–24).")
+        spin_row("Motion Smoothing", "Eases accel/decel so moves glide  (0 = off · 5 = default · 10 = silky)",
+                 0, 10, self._motion_smooth_v,
+                 tooltip="Ramps the camera's pan/tilt speed up and down instead "
+                         "of snapping. Higher = smoother, more cinematic motion "
+                         "(slightly slower to react). 0 turns ramping off.")
         spin_row("Vertical Offset", "Y tracking center offset  (−7 = top of head · 0 = center · +7 = feet)",
                  -7, 7, self._offset_v,
                  tooltip="Fine-tune aim point. -7 = top of head, +7 = feet, 0 = centered.")
+
+        # ── MOTION SYNC ───────────────────────────────────
+        sec("MOTION SYNC")
+
+        r_ms = make_row("Motion Sync",
+                        "Sync pan, tilt & zoom so all axes reach a preset together — smoother recalls")
+        self._motion_sync_cb = tk.Checkbutton(
+            r_ms, text="Enable",
+            variable=self._motion_sync_v,
+            command=self._on_motion_sync_toggle,
+            bg=BG2, fg=FG, selectcolor=BG3,
+            activebackground=BG2, font=(FONT, 9), cursor="hand2")
+        self._motion_sync_cb.pack(side=tk.RIGHT)
+        tip(self._motion_sync_cb,
+            "Camera scales each axis's speed so pan, tilt and zoom arrive "
+            "together — smooth, coordinated preset recalls. Requires a "
+            "PTZOptics camera with Motion Sync support.")
 
         # ── DEAD ZONES ────────────────────────────────────
         sec("DEAD ZONES")
@@ -1664,6 +1769,18 @@ class App:
         self._sync_zoom_detail_state()
         self._sync_autozoom_btn()
 
+    # ── Motion Sync toggle ───────────────────────────────────
+
+    def _on_motion_sync_toggle(self):
+        """Push Motion Sync to the camera the moment it's toggled."""
+        on = self._motion_sync_v.get()
+        SETTINGS.motion_sync = on
+        if self.visca:
+            try:
+                self.visca.set_motion_sync(on)
+            except Exception as e:
+                print(f"[VISCA] Motion Sync toggle failed: {e}")
+
     # ── Toggle settings panel ────────────────────────────────
 
     def _toggle_settings(self):
@@ -1704,6 +1821,8 @@ class App:
         self._zoom_tgt_v.set(int(SETTINGS.zoom_target * 100))
         self._zoom_dead_v.set(int(SETTINGS.zoom_dead  * 100))
         self._zoom_spd_v.set(SETTINGS.zoom_speed)
+        self._motion_sync_v.set(SETTINGS.motion_sync)
+        self._motion_smooth_v.set(SETTINGS.motion_smooth)
         self._lat_v.set(SETTINGS.latency_comp)
         self._lost_v.set(SETTINGS.lost_timeout)
         self._on_zoom_toggle_main()
@@ -1737,6 +1856,11 @@ class App:
             return
         PROFILE_MANAGER.load_profile(name)
         self._refresh_ui_from_settings()
+        if self.visca:
+            try:
+                self.visca.set_motion_sync(SETTINGS.motion_sync)
+            except Exception as e:
+                print(f"[VISCA] Motion Sync apply failed: {e}")
 
     def _delete_profile(self):
         name = self._profile_var.get()
@@ -1784,6 +1908,8 @@ class App:
         SETTINGS.zoom_target  = self._zoom_tgt_v.get() / 100.0
         SETTINGS.zoom_dead    = self._zoom_dead_v.get() / 100.0
         SETTINGS.zoom_speed   = self._zoom_spd_v.get()
+        SETTINGS.motion_sync  = self._motion_sync_v.get()
+        SETTINGS.motion_smooth = self._motion_smooth_v.get()
         SETTINGS.latency_comp = self._lat_v.get()
         SETTINGS.lost_timeout = self._lost_v.get()
 
