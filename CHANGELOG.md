@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.4 — 2026-06-21
+
+### Fixes
+- **Auto-update now actually applies.** The updater launched the silent installer while the old app was still running, so Windows refused to overwrite the locked `.exe` — the install failed quietly and reopening still showed the old version. The installer now force-closes the running app before copying files, then relaunches the updated app when it finishes a silent (auto-update) install. The app also shows an "updating — app will restart" status and exits cleanly so the file unlocks.
+- Fixed a Start Menu shortcut that pointed at a folder the installer never created.
+
+---
+
 ## v1.3 — 2026-06-21
 
 ### Changes

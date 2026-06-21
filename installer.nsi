@@ -36,6 +36,7 @@ VIAddVersionKey "LegalCopyright"   "Open Source"
 ; Pages
 
 !include "MUI2.nsh"
+!include "LogicLib.nsh"
 
 !define MUI_ABORTWARNING
 !define MUI_ICON "trackmind_icon.ico"
@@ -49,6 +50,10 @@ VIAddVersionKey "LegalCopyright"   "Open Source"
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
+
+; Offer to launch the app at the end of an interactive install
+!define MUI_FINISHPAGE_RUN "$INSTDIR\Trackmind.exe"
+!define MUI_FINISHPAGE_RUN_TEXT "Launch Trackmind now"
 !insertmacro MUI_PAGE_FINISH
 
 !insertmacro MUI_UNPAGE_CONFIRM
@@ -61,7 +66,19 @@ VIAddVersionKey "LegalCopyright"   "Open Source"
 
 Section "Install" SecMain
 
+  ; ── Close any running instance before copying files ──
+  ; The auto-updater launches this installer while the old Trackmind is
+  ; still open. On Windows a running .exe is locked, so a silent install
+  ; would fail to overwrite it (quietly, with no error) and the update
+  ; would appear to "do nothing". Force it closed and wait for the file
+  ; handle to release before we write.
+  DetailPrint "Closing any running Trackmind..."
+  nsExec::Exec 'taskkill /F /IM Trackmind.exe /T'
+  Pop $0
+  Sleep 2000
+
   SetOutPath "$INSTDIR"
+  SetOverwrite on
 
   ; Main executable
   File "dist\Trackmind.exe"
@@ -98,13 +115,20 @@ Section "Install" SecMain
 
   ; Start Menu shortcut
   CreateDirectory "$SMPROGRAMS\Trackmind"
-  CreateShortcut "$SMPROGRAMS\PTZ Auto-Tracker\Trackmind.lnk" \
+  CreateShortcut "$SMPROGRAMS\Trackmind\Trackmind.lnk" \
     "$INSTDIR\Trackmind.exe"
   CreateShortcut "$SMPROGRAMS\Trackmind\Uninstall.lnk" \
     "$INSTDIR\Uninstall.exe"
 
   ; Desktop shortcut
   CreateShortcut "$DESKTOP\Trackmind.lnk" "$INSTDIR\Trackmind.exe"
+
+  ; ── Relaunch after a silent (auto-update) install ──
+  ; Silent mode skips the Finish page, so relaunch the freshly installed
+  ; app ourselves — otherwise an auto-update ends with nothing running.
+  ${If} ${Silent}
+    Exec '"$INSTDIR\Trackmind.exe"'
+  ${EndIf}
 
 SectionEnd
 

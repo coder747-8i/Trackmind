@@ -408,11 +408,18 @@ class Updater:
             self.app.status_var.set("INSTALLING...")
             self.app.root.update()
 
+            # Launch the installer elevated and silent. It will close this
+            # running instance (so the locked .exe can be overwritten) and
+            # relaunch the updated app when it finishes. We then close
+            # ourselves promptly so the file unlocks cleanly — the installer
+            # also force-closes us as a fallback before copying.
             import ctypes
             ret = ctypes.windll.shell32.ShellExecuteW(None, "runas", tmp_path, "/S", None, 1)
             if ret <= 32:
                 raise OSError(f"Could not launch installer (code {ret}) — try running as administrator")
-            self.app.root.after(1500, self.app.on_close)
+            self.app.status_var.set("UPDATING — APP WILL RESTART...")
+            self.app.root.update()
+            self.app.root.after(800, self.app.on_close)
 
         except Exception as e:
             messagebox.showerror(
