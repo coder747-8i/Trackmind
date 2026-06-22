@@ -46,7 +46,7 @@ if errorlevel 1 (
 
 echo.
 echo ============================================
-echo  INSTALLER COMPLETE: Trackmind_Setup.exe
+echo  INSTALLER COMPLETE: Trackmind_Setup_v%VER%.exe
 echo  Version: %VER%
 echo ============================================
 echo.

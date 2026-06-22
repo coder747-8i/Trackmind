@@ -96,5 +96,5 @@ jobs:
           name: Trackmind v${{ steps.ver.outputs.version }}
           body_path: RELEASE_NOTES.md
           files: |
-            Trackmind_Setup.exe
+            Trackmind_Setup_v${{ steps.ver.outputs.version }}.exe
             Trackmind-v${{ steps.ver.outputs.version }}-source.zip

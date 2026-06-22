@@ -17,7 +17,7 @@
 ; General
 
 Name "Trackmind"
-OutFile "Trackmind_Setup.exe"
+OutFile "Trackmind_Setup_v${APP_VERSION}.exe"
 InstallDir "$PROGRAMFILES64\Trackmind"
 InstallDirRegKey HKLM "Software\Trackmind" "Install_Dir"
 RequestExecutionLevel admin
