@@ -70,18 +70,42 @@ Section "Install" SecMain
   ; The auto-updater launches this installer while the old Trackmind is
   ; still open. On Windows a running .exe is locked, so a silent install
   ; would fail to overwrite it (quietly, with no error) and the update
-  ; would appear to "do nothing". Force it closed and wait for the file
-  ; handle to release before we write.
+  ; would appear to "do nothing". Force it closed, then confirm the lock
+  ; is released before writing — Windows Defender and other AV software
+  ; can hold the lock for several seconds after a forced kill.
   DetailPrint "Closing any running Trackmind..."
   nsExec::Exec 'taskkill /F /IM Trackmind.exe /T'
   Pop $0
-  Sleep 2000
 
   SetOutPath "$INSTDIR"
+
+  ; Retry deleting the old EXE until the file lock releases.
+  ; Up to 10 attempts × 1 s = 10 s max wait.
+  StrCpy $R0 0
+  check_lock:
+    IfFileExists "$INSTDIR\Trackmind.exe" 0 file_ready  ; fresh install — skip
+    ClearErrors
+    Delete "$INSTDIR\Trackmind.exe"
+    IfErrors 0 file_ready            ; deleted — lock is gone
+    IntOp $R0 $R0 + 1
+    IntCmp $R0 10 file_ready wait_1s file_ready  ; >= 10 tries: give up
+    wait_1s:
+      DetailPrint "Waiting for file lock to release ($R0/10)..."
+      Sleep 1000
+      Goto check_lock
+  file_ready:
+  ClearErrors
+
   SetOverwrite on
 
   ; Main executable
   File "dist\Trackmind.exe"
+  IfErrors 0 copy_ok
+    MessageBox MB_OK|MB_ICONSTOP \
+      "Update failed: could not replace Trackmind.exe.$\n$\nThe file may still be locked by antivirus. Please restart your PC and reinstall if needed.$\n$\nManual download: https://github.com/coder747-8i/Trackmind/releases" \
+      /SD IDOK
+    Abort
+  copy_ok:
 
   ; Optional docs — use /nonfatal so build continues if files are missing
   File /nonfatal "context.txt"

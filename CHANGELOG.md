@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.6 — 2026-06-21
+
+### Fixes
+- **Auto-update file-overwrite race condition fixed.** The NSIS installer previously relied on a fixed 2-second sleep after `taskkill`, which was not always enough time for Windows Defender or other AV software to release its lock on the killed process's EXE. NSIS would then silently skip the file copy, relaunch the *old* binary, and the update appeared to do nothing. The installer now confirms the lock is released by repeatedly attempting to delete the old EXE (up to 10 retries × 1 second each = 10 s max) before copying the new one, and explicitly aborts with an error message if the copy still fails.
+
+---
+
 ## v1.5 — 2026-06-21
 
 ### Fixes
