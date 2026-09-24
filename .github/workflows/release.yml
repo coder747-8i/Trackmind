@@ -95,8 +95,9 @@ jobs:
         working-directory: streamdeck
         run: |
           npm ci
+          npm run build          # bin/plugin.js is generated, not committed
           npm run validate
-          npm run pack
+          npx streamdeck pack com.coder747.trackmind.sdPlugin --output dist --force
           mv dist/com.coder747.trackmind.streamDeckPlugin \
              "../Trackmind-StreamDeck-v${{ steps.ver.outputs.version }}.streamDeckPlugin"
 
