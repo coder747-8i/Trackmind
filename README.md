@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="trackmind_logo.svg" width="640" alt="Trackmind — intelligent PTZ auto-tracking">
+  <img src="logos/trackmind_logo.svg" width="640" alt="Trackmind — intelligent PTZ auto-tracking">
 </p>
 
 <p align="center">
@@ -94,7 +94,7 @@ The live camera fills the window. Every control floats over the picture as liqui
 | **Top center** | Tally pill: **TRACKING** (green), **LOCKED** (amber), **PAUSED**, **CONNECTING** (amber), **NO SIGNAL** (red). Next to it is what the tracker is doing right now. |
 | **Top right** | Camera chip (IP and live FPS; click it for camera settings), **Live tune**, **Full screen**, **Settings** |
 | **Bottom dock** | The buttons you use during a service: **Tracking**, **Lock**, **Auto-Zoom**, **Home** |
-| **On the video** | A green reticle follows the subject (it turns amber when locked). The dashed box is the dead zone, where the camera stays still. |
+| **On the video** | A green reticle follows the subject (it turns amber when locked). The dashed box is the dead zone, where the camera stays still. While the [pulpit anchor](#pulpit-anchor) holds the shot, a **Holding on pulpit** chip shows at the top and an amber band marks the hold zone. |
 
 - **Tracking (T):** when on, the camera follows whoever is detected in frame. When off, the camera stops, and you have full manual control from a joystick, Stream Deck, vMix, or any other controller.
 - **Lock (L):** while tracking, locks onto the current subject and ignores everyone else. Turning tracking off releases the lock.
@@ -145,6 +145,29 @@ Click the gear (or press `,`). Every change applies immediately and is saved. Th
 
 Save the current settings under a name, then load or delete profiles later. This is useful for different rooms, presenters, or camera positions. The active profile is marked.
 
+### Pulpit anchor
+
+For a speaker at a pulpit that's always in the same spot. The dead zone lets the camera stop anywhere near center, so when the speaker steps behind the pulpit the shot can end up slightly off. The pulpit anchor fixes that without lowering the sensitivity for the rest of the service. When the camera comes to rest near the pulpit, Trackmind snaps to the pulpit shot and holds it. Leaning, gestures and turning pages won't move the camera. When the speaker walks out of the hold zone, normal tracking takes over.
+
+**Setup (per profile):**
+1. Load the profile, e.g. *Sunday AM*.
+2. In **Settings → Pulpit**, turn on **Pulpit anchor** and set **Pulpit preset** to the camera preset framing the pulpit.
+3. Click **Learn pulpit**. Trackmind recalls that preset, waits for the camera to stop, and records exactly where the camera points.
+
+Each profile keeps its own anchor: on or off, preset, learned position, and tuning. *Wednesday* can use a different pulpit, or none. Changes on this page save straight into the active profile. Profiles saved before v1.8 load with the anchor off.
+
+| Setting | Default | Description |
+|---|---|---|
+| Pulpit anchor | Off | Enable for this profile |
+| Pulpit preset | 5 | Preset framing the pulpit. **Learn pulpit** records its position. |
+| Snap style | Recall preset | **Recall preset** jumps to the preset, zoom included. **Glide** pans to the learned position at the glide speed and keeps the current zoom. |
+| Glide speed | 6 | Pan/tilt speed for Glide (1–24) |
+| Snap range | 4 | How close the camera must settle to the pulpit, in steps of about 1° on PTZOptics cameras. While tracking, the Position line shows the live distance, so you can tune this in a rehearsal. |
+| Settle time | 1.0 s | How long the camera must sit still before snapping, so walking past the pulpit doesn't trigger it |
+| Hold zone | 25% | How far off center (fraction of the frame width) the speaker can move before tracking resumes |
+
+It needs a camera that answers the VISCA pan/tilt position inquiry. PTZOptics cameras do. If **Learn pulpit** reports that the camera didn't give its position, your camera can't use this feature.
+
 ### Tracking
 
 | Setting | Default | Description |
@@ -172,6 +195,7 @@ Save the current settings under a name, then load or delete profiles later. This
 | Lost timeout | 2.0 s | Seconds before returning to the home preset when the subject is missing |
 | Glass | Liquid | **Lite** skips the refraction effect on slower PCs |
 | Tracking overlay | On | Show or hide the reticle and dead-zone guide |
+| Pulpit hold zone | On | Outline the pulpit hold zone while the shot is held (this PC only) |
 
 ### Stream Deck
 
@@ -198,7 +222,7 @@ Trackmind has an official Stream Deck plugin with liquid-glass, vMix-style tally
   <img src="docs/images/streamdeck-keys.png" width="760" alt="Trackmind Stream Deck keys">
 </p>
 
-**Actions:** Tracking · Lock Subject · Recall Preset · Home Preset · Auto-Zoom · Pan/Tilt (hold) · Zoom (hold) · Load Profile · Motion Sync · Status · Tracking Dial (Stream Deck +)
+**Actions:** Tracking · Lock Subject · Recall Preset · Home Preset · Auto-Zoom · Pan/Tilt (hold) · Zoom (hold) · Load Profile · Motion Sync · Pulpit Anchor · Status · Tracking Dial (Stream Deck +)
 
 **Install:**
 
@@ -218,7 +242,7 @@ Trackmind exposes a small JSON HTTP API on `http://127.0.0.1:8742/api/`. Anythin
 | Endpoint | Does |
 |----------|------|
 | `GET /api/status` | Full live state: tracking, lock, subject position, stream, profiles, live values |
-| `POST /api/tracking` · `lock` · `autozoom` · `motion-sync` | `{"state": "toggle" \| "on" \| "off"}` |
+| `POST /api/tracking` · `lock` · `autozoom` · `motion-sync` · `anchor` | `{"state": "toggle" \| "on" \| "off"}` |
 | `POST /api/preset` | `{"preset": 4, "tracking": "off" \| "keep"}` |
 | `POST /api/home` | Recall the home preset |
 | `POST /api/profile` | `{"name": "Sunday AM"}` |
@@ -243,6 +267,8 @@ The full reference, with every field, error code, and example, is in [`docs/API.
 5. Pan and tilt speed is **proportional** to how far off center the subject is, then **slew-rate limited**. The camera eases into and out of every move instead of snapping between fixed speeds.
 6. **VISCA over IP** commands go to the camera's LAN port (TCP 5678).
 7. The interface is an HTML app shown in a native WebView2 window. A local-only server in the same process hosts it, streams the preview (MJPEG), and pushes live state (Server-Sent Events). That same server is the Control API.
+
+**Pulpit anchor:** while the anchor is on, Trackmind asks the camera for its absolute pan/tilt about 4 times a second (VISCA `Pan-tiltPosInq`). When the camera has stopped within the snap range of the learned pulpit position for the settle time, it recalls the pulpit preset or glides there (VISCA absolute move). It then ignores small movements until the speaker leaves the hold zone.
 
 **Lock-on:** while LOCK is active, the detector only follows detections within 25% of the frame from the locked subject's last position. Anyone else is ignored.
 
@@ -278,6 +304,16 @@ The full reference, with every field, error code, and example, is in [`docs/API.
 - If the line under it says the port is in use, choose another port and set the same port under *Connection* in any Trackmind key's settings.
 - See [`streamdeck/README.md`](streamdeck/README.md) for more.
 
+**An update doesn't install**
+- When you click **Install & restart**, Windows shows an admin prompt. Click **Yes**. Trackmind closes, updates silently, and reopens within about 10–20 seconds.
+- Versions 1.4–1.7 had a bug where the installer closed itself before updating. Updating *from* those versions to v1.8 or later works. If you're stuck, download `Trackmind_Setup_vX.Y.exe` from the [releases page](https://github.com/coder747-8i/Trackmind/releases/latest) and run it once by hand.
+- If you see "Trackmind.exe is locked", antivirus is holding the file. Restart the PC and try again.
+
+**The pulpit anchor never snaps, or snaps when it shouldn't**
+- Check **Settings → Pulpit**. While tracking, the Position line shows how far the camera is from the pulpit. If it rests just outside the range, raise **Snap range**. If it snaps while the speaker walks past, raise **Settle time** or lower **Snap range**.
+- If the speaker's gestures release the hold, raise **Hold zone**.
+- If you moved or re-saved the pulpit preset on the camera, click **Re-learn**.
+
 **The setup wizard doesn't appear on first launch**
 - Delete `%USERPROFILE%\.trackmind\<your-username>\config.json` and relaunch.
 
@@ -291,6 +327,7 @@ The full reference, with every field, error code, and example, is in [`docs/API.
 | `ui/` | The interface: HTML/CSS/JS with no build step, plus the **Trackmind Liquid** design system (`ui/css/glass.css`, `ui/js/liquid-glass*.js`) |
 | `streamdeck/` | Stream Deck plugin (TypeScript). It reuses `ui/`'s design system and glass optics. |
 | `branding/` | Generates every logo, icon, and installer image from one script (`npm run build`) |
+| `logos/` | Generated logo, app icon (`.ico`/`.svg`) and installer art. Don't edit by hand; change `branding/build-brand.mjs` and rebuild. |
 | `docs/` | API reference and screenshots |
 
 ---

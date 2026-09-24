@@ -21,6 +21,10 @@
 <filter id="icon-halo" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur stdDeviation="3.2"/></filter>
 </defs>
 <g clip-path="url(#shape)">
+<!-- Opaque base: the stage blur pulls transparency in from outside the
+     canvas, which left a half-see-through rim (a white fringe on light
+     backgrounds). Blurring over a solid base keeps the edge fully opaque. -->
+<rect width="1024" height="1024" fill="#06080b"/>
 <g filter="url(#stage)">
 <rect width="1024" height="1024" fill="#06080b"/>
 <circle cx="300" cy="760" r="330" fill="#22d66f" opacity="0.95"/>

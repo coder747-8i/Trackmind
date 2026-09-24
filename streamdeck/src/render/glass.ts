@@ -115,8 +115,9 @@ function glassBackdrop(W: number, H: number, pane: Pane, lights: Light[], tint: 
 	const stage = `<rect width="${W}" height="${H}" fill="#07090c"/>` + lights.map((_, i) => `<rect width="${W}" height="${H}" fill="url(#L${i})"/>`).join("");
 	const pad = 14;
 	const { x, y, w, h, r } = pane;
-	// Surround: dim everything outside the pane so the key reads as a glass
-	// tile with its light bleeding out, not a coloured square.
+	// Surround (inset panes only): dim everything outside the pane so it reads
+	// as a glass tile with its light bleeding out. Full-bleed panes skip it —
+	// their corners show the lit stage instead of black.
 	const hole = `M0 0H${W}V${H}H0Z M${x + r} ${y}H${x + w - r}A${r} ${r} 0 0 1 ${x + w} ${y + r}V${y + h - r}A${r} ${r} 0 0 1 ${x + w - r} ${y + h}H${x + r}A${r} ${r} 0 0 1 ${x} ${y + h - r}V${y + r}A${r} ${r} 0 0 1 ${x + r} ${y}Z`;
 	return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><defs>
 ${grads}
@@ -139,8 +140,8 @@ ${grads}
 </linearGradient>
 </defs>
 ${stage}
-<path d="${hole}" fill="#050608" fill-rule="evenodd" opacity="0.62"/>
-<rect x="${x + 2}" y="${y + 7}" width="${w - 4}" height="${h - 4}" rx="${r}" fill="#000000" opacity="0.6" filter="url(#shadow)"/>
+${x > 0 ? `<path d="${hole}" fill="#050608" fill-rule="evenodd" opacity="0.62"/>` : ""}
+${x > 0 ? `<rect x="${x + 2}" y="${y + 7}" width="${w - 4}" height="${h - 4}" rx="${r}" fill="#000000" opacity="0.6" filter="url(#shadow)"/>` : ""}
 <g clip-path="url(#pane)">
 ${stage}
 <g filter="url(#refract)">${stage}</g>
@@ -182,7 +183,9 @@ function glow(cx: number, cy: number, rx: number, ry: number, color: string, opa
 
 // ── Keys (144 × 144) ─────────────────────────────────────────
 
-const KEY_PANE: Pane = { x: 9, y: 9, w: 126, h: 126, r: 36, bezel: 22 };
+// Full bleed: the glass fills the whole key. The Stream Deck's own key cap
+// frames it, so an inset pane only showed up as a black border.
+const KEY_PANE: Pane = { x: 0, y: 0, w: 144, h: 144, r: 22, bezel: 22 };
 
 export function keyLayers(spec: KeySpec): Layers {
 	const offline = !!spec.offline;
@@ -208,15 +211,15 @@ export function keyLayers(spec: KeySpec): Layers {
 
 	let centre = "";
 	if (spec.glyph !== undefined) {
-		const size = fit(spec.glyph, 54, 100, 0.6);
-		centre = label(72, 82 - (54 - size) * 0.32, size, 700, offline ? Ink.dim : "#ffffff", spec.glyph);
+		const size = fit(spec.glyph, 62, 116, 0.6);
+		centre = label(72, 84 - (62 - size) * 0.32, size, 700, offline ? Ink.dim : "#ffffff", spec.glyph);
 	} else if (spec.icon) {
 		const rot = spec.icon === "arrow" ? (ARROW_ANGLE[spec.direction ?? "up"] ?? 0) : 0;
 		const name: IconName = offline && spec.icon !== "arrow" ? "offline" : spec.icon;
 		const glyph = icons[name](ink, accent);
 		centre =
-			(lit ? `<g transform="translate(50 29.5) scale(1.84)${rot ? ` rotate(${rot} 12 12)` : ""}" opacity="0.22">${icons[name]("#000000", "#000000")}</g>` : "") +
-			`<g transform="translate(50 28) scale(1.84)${rot ? ` rotate(${rot} 12 12)` : ""}">${glyph}</g>`;
+			(lit ? `<g transform="translate(45.6 24.5) scale(2.2)${rot ? ` rotate(${rot} 12 12)` : ""}" opacity="0.22">${icons[name]("#000000", "#000000")}</g>` : "") +
+			`<g transform="translate(45.6 23) scale(2.2)${rot ? ` rotate(${rot} 12 12)` : ""}">${glyph}</g>`;
 	}
 
 	const title = spec.label.toUpperCase();
@@ -237,12 +240,12 @@ export function keyLayers(spec: KeySpec): Layers {
 
 	const corner = spec.corner && !offline ? Tone[spec.corner] : null;
 
-	const body = `${lit ? glow(72, 21.5, 30, 10, "#ffffff", 0.55, "tg") : ""}
-<rect x="54" y="18.5" width="36" height="6" rx="3" fill="#ffffff" opacity="${lit ? 0.95 : 0.16}"/>
-${corner ? `${glow(114, 30, 12, 12, corner.base, 0.9, "cg")}<circle cx="114" cy="30" r="4.2" fill="${corner.base}" stroke="#ffffff" stroke-opacity="0.8" stroke-width="1.2"/>` : ""}
+	const body = `${lit ? glow(72, 13, 32, 10, "#ffffff", 0.55, "tg") : ""}
+<rect x="52" y="10" width="40" height="6" rx="3" fill="#ffffff" opacity="${lit ? 0.95 : 0.16}"/>
+${corner ? `${glow(122, 22, 13, 13, corner.base, 0.9, "cg")}<circle cx="122" cy="22" r="5" fill="${corner.base}" stroke="#ffffff" stroke-opacity="0.8" stroke-width="1.3"/>` : ""}
 ${centre}
-${label(72, sub ? 108 : 114, fit(title, 16, 112), 700, offline ? Ink.dim : "#ffffff", title)}
-${sub ? label(72, 124.5, fit(sub, 11.5, 108), 600, subFill, sub) : ""}`;
+${label(72, sub ? 111 : 118, fit(title, 18, 128), 700, offline ? Ink.dim : "#ffffff", title)}
+${sub ? label(72, 130, fit(sub, 13, 126), 600, subFill, sub) : ""}`;
 	return {
 		width: 144,
 		height: 144,
@@ -269,7 +272,7 @@ export type DialSpec = {
 	locked?: boolean;
 };
 
-const DIAL_PANE: Pane = { x: 5, y: 5, w: 190, h: 90, r: 26, bezel: 18 };
+const DIAL_PANE: Pane = { x: 0, y: 0, w: 200, h: 100, r: 20, bezel: 18 };
 
 export function dialLayers(spec: DialSpec): Layers {
 	const offline = !!spec.offline;

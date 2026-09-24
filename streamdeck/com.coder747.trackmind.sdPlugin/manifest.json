@@ -1,7 +1,7 @@
 {
 	"$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
 	"Name": "Trackmind",
-	"Version": "1.0.0.0",
+	"Version": "1.1.0.0",
 	"Author": "coder747-8i",
 	"Description": "Control Trackmind PTZ auto-tracking from your Stream Deck — tracking, lock-on, presets, auto-zoom, manual PTZ and live tuning, with vMix-style tally keys.",
 	"URL": "https://github.com/coder747-8i/Trackmind",
@@ -179,6 +179,23 @@
 			"States": [
 				{
 					"Image": "imgs/actions/motionsync/key",
+					"ShowTitle": false
+				}
+			]
+		},
+		{
+			"Name": "Pulpit Anchor",
+			"UUID": "com.coder747.trackmind.anchor",
+			"Icon": "imgs/actions/anchor/icon",
+			"Tooltip": "Snap to the pulpit preset when the speaker settles there, and hold the shot. Per profile.",
+			"PropertyInspectorPath": "ui/inspector.html",
+			"Controllers": [
+				"Keypad"
+			],
+			"SupportedInMultiActions": true,
+			"States": [
+				{
+					"Image": "imgs/actions/anchor/key",
 					"ShowTitle": false
 				}
 			]

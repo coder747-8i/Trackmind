@@ -39,11 +39,11 @@ VIAddVersionKey "LegalCopyright"   "Open Source"
 !include "LogicLib.nsh"
 
 !define MUI_ABORTWARNING
-!define MUI_ICON "trackmind_icon.ico"
-!define MUI_UNICON "trackmind_icon.ico"
+!define MUI_ICON "logos\trackmind_icon.ico"
+!define MUI_UNICON "logos\trackmind_icon.ico"
 
-!define MUI_WELCOMEFINISHPAGE_BITMAP "trackmind_installer.bmp"
-!define MUI_UNWELCOMEFINISHPAGE_BITMAP "trackmind_installer.bmp"
+!define MUI_WELCOMEFINISHPAGE_BITMAP "logos\trackmind_installer.bmp"
+!define MUI_UNWELCOMEFINISHPAGE_BITMAP "logos\trackmind_installer.bmp"
 !define MUI_WELCOMEPAGE_TITLE "TrackMind"
 !define MUI_WELCOMEPAGE_TEXT "This will install Trackmind on your computer.$\r$\n$\r$\nAuto-tracking software for PTZOptics cameras using AI pose detection.$\r$\n$\r$\nClick Next to continue."
 
@@ -52,8 +52,9 @@ VIAddVersionKey "LegalCopyright"   "Open Source"
 !insertmacro MUI_PAGE_INSTFILES
 
 ; Offer to launch the app at the end of an interactive install
-!define MUI_FINISHPAGE_RUN "$INSTDIR\Trackmind.exe"
+!define MUI_FINISHPAGE_RUN
 !define MUI_FINISHPAGE_RUN_TEXT "Launch Trackmind now"
+!define MUI_FINISHPAGE_RUN_FUNCTION LaunchApp
 !insertmacro MUI_PAGE_FINISH
 
 !insertmacro MUI_UNPAGE_CONFIRM
@@ -62,38 +63,72 @@ VIAddVersionKey "LegalCopyright"   "Open Source"
 !insertmacro MUI_LANGUAGE "English"
 
 ;--------------------------------
+; Start Trackmind as the signed-in user, not as admin. This installer runs
+; elevated, and a plain Exec would hand that elevation to the app. Going
+; through Explorer starts it the same way a double-click does.
+
+Function LaunchApp
+  Exec '"$WINDIR\explorer.exe" "$INSTDIR\Trackmind.exe"'
+FunctionEnd
+
+;--------------------------------
 ; Installer section
 
 Section "Install" SecMain
 
-  ; ── Close any running instance before copying files ──
-  ; The auto-updater launches this installer while the old Trackmind is
-  ; still open. On Windows a running .exe is locked, so a silent install
-  ; would fail to overwrite it (quietly, with no error) and the update
-  ; would appear to "do nothing". Force it closed, then confirm the lock
-  ; is released before writing — Windows Defender and other AV software
-  ; can hold the lock for several seconds after a forced kill.
-  DetailPrint "Closing any running Trackmind..."
-  nsExec::Exec 'taskkill /F /IM Trackmind.exe /T'
-  Pop $0
+  ; ── Close the running app before replacing it ──
+  ; The auto-updater launches this installer and then closes itself. Give it
+  ; a few seconds to exit cleanly (it saves settings on the way out), then
+  ; force it. NEVER use taskkill /T here: an installer started through the
+  ; UAC prompt counts as a child of the app that launched it, so /T killed
+  ; this installer along with the app. That was the v1.4–v1.7 "update does
+  ; nothing" bug.
+  DetailPrint "Waiting for Trackmind to close..."
+  StrCpy $R1 0
+  wait_exit:
+    nsExec::ExecToStack 'cmd /c tasklist /FI "IMAGENAME eq Trackmind.exe" /NH | find /I "Trackmind.exe"'
+    Pop $0   ; find's exit code: 0 = still running
+    Pop $1
+    StrCmp $0 "0" 0 app_closed
+    IntOp $R1 $R1 + 1
+    IntCmp $R1 24 force_close 0 force_close   ; 24 × 250 ms = 6 s
+    Sleep 250
+    Goto wait_exit
+  force_close:
+    DetailPrint "Closing Trackmind..."
+    nsExec::Exec 'taskkill /F /IM Trackmind.exe'
+    Pop $0
+    Sleep 500
+  app_closed:
 
   SetOutPath "$INSTDIR"
 
-  ; Retry deleting the old EXE until the file lock releases.
-  ; Up to 10 attempts × 1 s = 10 s max wait.
+  ; Move the old EXE aside instead of deleting it. Windows lets you rename an
+  ; EXE even while it's still running or held open by antivirus, which a
+  ; delete doesn't allow. Retry for a while in case an AV scan is holding it
+  ; exclusively.
+  Delete "$INSTDIR\Trackmind.old.exe"   ; leftover from a previous update
   StrCpy $R0 0
-  check_lock:
-    IfFileExists "$INSTDIR\Trackmind.exe" 0 file_ready  ; fresh install — skip
+  move_old:
+    IfFileExists "$INSTDIR\Trackmind.exe" 0 old_moved   ; fresh install
     ClearErrors
-    Delete "$INSTDIR\Trackmind.exe"
-    IfErrors 0 file_ready            ; deleted — lock is gone
+    Rename "$INSTDIR\Trackmind.exe" "$INSTDIR\Trackmind.old.exe"
+    IfErrors 0 old_moved
     IntOp $R0 $R0 + 1
-    IntCmp $R0 10 file_ready wait_1s file_ready  ; >= 10 tries: give up
-    wait_1s:
-      DetailPrint "Waiting for file lock to release ($R0/10)..."
-      Sleep 1000
-      Goto check_lock
-  file_ready:
+    IntCmp $R0 15 old_stuck 0 old_stuck
+    DetailPrint "Waiting for Trackmind.exe to be released ($R0/15)..."
+    Sleep 1000
+    Goto move_old
+  old_stuck:
+    ; The old EXE is still intact. Put the user back where they were.
+    MessageBox MB_OK|MB_ICONSTOP \
+      "Update failed: Trackmind.exe is locked (usually by antivirus).$\n$\nRestart your PC and run the installer again, or download it from:$\nhttps://github.com/coder747-8i/Trackmind/releases" \
+      /SD IDOK
+    ${If} ${Silent}
+      Call LaunchApp
+    ${EndIf}
+    Abort
+  old_moved:
   ClearErrors
 
   SetOverwrite on
@@ -101,11 +136,18 @@ Section "Install" SecMain
   ; Main executable
   File "dist\Trackmind.exe"
   IfErrors 0 copy_ok
+    ; Couldn't write the new EXE: restore the old one so Trackmind still runs.
+    Rename "$INSTDIR\Trackmind.old.exe" "$INSTDIR\Trackmind.exe"
     MessageBox MB_OK|MB_ICONSTOP \
-      "Update failed: could not replace Trackmind.exe.$\n$\nThe file may still be locked by antivirus. Please restart your PC and reinstall if needed.$\n$\nManual download: https://github.com/coder747-8i/Trackmind/releases" \
+      "Update failed: could not write the new Trackmind.exe.$\n$\nDownload the installer manually from:$\nhttps://github.com/coder747-8i/Trackmind/releases" \
       /SD IDOK
+    ${If} ${Silent}
+      Call LaunchApp
+    ${EndIf}
     Abort
   copy_ok:
+  ; Gone now, or on the next reboot if something still holds it.
+  Delete /REBOOTOK "$INSTDIR\Trackmind.old.exe"
 
   ; Optional docs — use /nonfatal so build continues if files are missing
   File /nonfatal "context.txt"
@@ -151,7 +193,7 @@ Section "Install" SecMain
   ; Silent mode skips the Finish page, so relaunch the freshly installed
   ; app ourselves — otherwise an auto-update ends with nothing running.
   ${If} ${Silent}
-    Exec '"$INSTDIR\Trackmind.exe"'
+    Call LaunchApp
   ${EndIf}
 
 SectionEnd
@@ -161,8 +203,14 @@ SectionEnd
 
 Section "Uninstall"
 
+  ; Close the app so its files can be removed
+  nsExec::Exec 'taskkill /F /IM Trackmind.exe'
+  Pop $0
+  Sleep 500
+
   ; Remove files
   Delete "$INSTDIR\Trackmind.exe"
+  Delete /REBOOTOK "$INSTDIR\Trackmind.old.exe"
   Delete /REBOOTOK "$INSTDIR\context.txt"
   Delete /REBOOTOK "$INSTDIR\README.md"
   Delete "$INSTDIR\Uninstall.exe"

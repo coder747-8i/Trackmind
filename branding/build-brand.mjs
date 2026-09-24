@@ -7,9 +7,9 @@
  * motion. In the wordmark, the same green dot is the dot of the "i".
  *
  * Outputs (paths relative to the repo root):
- *   trackmind_icon.svg / .ico      app icon (Windows exe, installer, shortcuts)
- *   trackmind_logo.svg             README banner
- *   trackmind_installer.bmp        NSIS welcome/finish page art (164×314)
+ *   logos/trackmind_icon.svg / .ico   app icon (Windows exe, installer, shortcuts)
+ *   logos/trackmind_logo.svg          README banner
+ *   logos/trackmind_installer.bmp     NSIS welcome/finish page art (164×314)
  *   ui/img/mark.svg, icon.svg, wordmark.svg, favicon.png
  *   streamdeck/…/imgs/plugin/*     Stream Deck marketplace & category icons
  */
@@ -169,6 +169,10 @@ function appIcon({ detail = true } = {}) {
 ${markDefs("icon")}
 </defs>
 <g clip-path="url(#shape)">
+<!-- Opaque base: the stage blur pulls transparency in from outside the
+     canvas, which left a half-see-through rim (a white fringe on light
+     backgrounds). Blurring over a solid base keeps the edge fully opaque. -->
+<rect width="${S}" height="${S}" fill="#06080b"/>
 <g filter="url(#stage)">${lights}</g>
 <rect x="${pane.x + 10}" y="${pane.y + 46}" width="${pane.w - 20}" height="${pane.h - 20}" rx="${pane.r}" fill="#000000" opacity="0.45" filter="url(#shadow)"/>
 <g clip-path="url(#pane)">
@@ -380,20 +384,20 @@ console.log("Building Trackmind brand assets…");
 const icon = appIcon();
 const small = smallIcon();
 
-write("trackmind_icon.svg", icon);
+write("logos/trackmind_icon.svg", icon);
 write("ui/img/icon.svg", icon);
 write("ui/img/mark.svg", markSvg());
 write("ui/img/wordmark.svg", wordmarkSvg());
-write("trackmind_logo.svg", banner());
+write("logos/trackmind_logo.svg", banner());
 write("ui/img/favicon.png", raster(small, 64).asPng());
 
 write(
-	"trackmind_icon.ico",
+	"logos/trackmind_icon.ico",
 	ico([16, 20, 24, 32, 40, 48, 64, 128, 256].map((size) => ({ size, png: raster(size <= 32 ? small : icon, size).asPng() }))),
 );
 
 const art = raster(installerArt(), 164);
-write("trackmind_installer.bmp", bmp24({ width: art.width, height: art.height, pixels: art.pixels }));
+write("logos/trackmind_installer.bmp", bmp24({ width: art.width, height: art.height, pixels: art.pixels }));
 
 // Stream Deck: marketplace icon (PNG required) + monochrome category icon
 const sd = "streamdeck/com.coder747.trackmind.sdPlugin/imgs/plugin";

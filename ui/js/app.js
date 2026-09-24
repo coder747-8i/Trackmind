@@ -42,6 +42,9 @@ function applyPrefs() {
 	const ov = pref.get("overlay", "1") === "1";
 	document.body.classList.toggle("no-overlay", !ov);
 	$("#overlayToggle").checked = ov;
+	const hz = pref.get("holdzone", "1") === "1";
+	document.body.classList.toggle("no-holdzone", !hz);
+	$("#holdzoneToggle").checked = hz;
 }
 
 // ── Toasts & tooltips ────────────────────────────────────────
@@ -114,6 +117,7 @@ const actions = {
 		flash($("#tileHome"));
 		if (await run("home", { tracking: "off" })) toast(`Home preset ${S?.home_preset ?? ""} recalled`, "red");
 	},
+	"anchor-learn": () => run("anchor-learn").then((r) => r && toast(`Recalling preset ${S?.anchor?.preset ?? ""} to learn the pulpit…`, "amber")),
 	reconnect: () => run("reconnect").then((r) => r && toast("Reconnecting to the camera…", "blue")),
 	"toggle-tune": () => toggleTune(),
 	fullscreen: () => toggleFullscreen(),
@@ -241,6 +245,17 @@ function paintOverlay() {
 		$("#reticleTag").textContent = S.locked ? "Locked" : "Subject";
 	}
 
+	const anchorState = S.anchor?.state;
+	$("#holdChip").hidden = !["snapping", "held"].includes(anchorState);
+	text("#holdChipText", anchorState !== "snapping" ? "Holding on pulpit" : S.anchor.mode === "glide" ? "Gliding to pulpit" : "Snapping to pulpit");
+
+	// While held, the hold zone replaces the dead zone as the band the speaker can roam
+	const held = anchorState === "held";
+	ov.classList.toggle("holding", held);
+	const hz = $("#holdzone");
+	const hw = S.anchor?.hold ?? 0.25;
+	Object.assign(hz.style, { left: `${(0.5 - hw) * r.w}px`, width: `${2 * hw * r.w}px` });
+
 	const z = $("#zoomChip");
 	z.hidden = !S.zooming;
 	$("#zoomChipText").textContent = S.zooming === 1 ? "Zooming in" : "Zooming out";
@@ -275,6 +290,7 @@ function describe(s) {
 	if (s.manual) return { tone: "blue", label: "Manual", detail: "Stream Deck is driving the camera" };
 	if (s.tracking) {
 		if (s.locked) return { tone: "amber", label: "Locked", detail: "Following the locked subject" };
+		if (s.anchor?.state === "held") return { tone: "green", label: "Tracking", detail: "Holding on the pulpit" };
 		return s.subject
 			? { tone: "green", label: "Tracking", detail: "Subject in frame" }
 			: { tone: "green", label: "Tracking", detail: "Searching for a subject…" };
@@ -439,7 +455,11 @@ function closeSheet() {
 }
 
 function markNav(id) {
-	for (const b of $$("#sheetNav button")) b.classList.toggle("active", b.dataset.section === id);
+	for (const b of $$("#sheetNav button")) {
+		const on = b.dataset.section === id;
+		if (on && !b.classList.contains("active")) b.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+		b.classList.toggle("active", on);
+	}
 }
 
 function bindSheetNav() {
@@ -565,6 +585,10 @@ function bindSettings() {
 		pref.set("overlay", e.target.checked ? "1" : "0");
 		applyPrefs();
 	});
+	$("#holdzoneToggle").addEventListener("change", (e) => {
+		pref.set("holdzone", e.target.checked ? "1" : "0");
+		applyPrefs();
+	});
 }
 
 function renderSettings(s) {
@@ -576,6 +600,7 @@ function renderSettings(s) {
 		text("#apiStatus", !api.enabled ? "Off" : api.listening ? `Listening on 127.0.0.1:${api.port}` : api.error || "Not listening");
 		$("#apiStatus").style.color = api.enabled ? (api.listening ? "var(--green)" : "var(--red)") : "";
 	}
+	renderAnchor(s);
 	text("#aboutVersion", `v${s.version}`);
 	const u = s.update;
 	if (u) {
@@ -590,6 +615,40 @@ function renderSettings(s) {
 						: "Never checked";
 		text("#updateLine", line);
 	}
+}
+
+let anchorWasLearning = false;
+function renderAnchor(s) {
+	const a = s.anchor;
+	if (!a) return;
+	let line;
+	let color = "";
+	if (a.learning) line = "Learning — waiting for the camera to stop…";
+	else if (a.error) (line = a.error), (color = "var(--red)");
+	else if (!a.learned) line = "Not learned yet — the anchor stays off until you learn it";
+	else if (a.state === "held") (line = "Holding on the pulpit"), (color = "var(--green)");
+	else if (a.offset != null) {
+		const near = a.offset <= s.settings.anchor_range;
+		line = `Learned · camera is ${a.offset.toFixed(1)} from the pulpit${near ? " — in range" : ""}`;
+		if (near) color = "var(--green)";
+	} else line = a.enabled ? "Learned · live distance shows while tracking" : "Learned";
+	text("#anchorStatus", line);
+	$("#anchorStatus").style.color = color;
+	const btn = $("#anchorLearn");
+	btn.disabled = a.learning || s.stream !== "live";
+	$("#anchorGlideRow").hidden = a.mode !== "glide";
+	btn.lastChild.textContent = a.learning ? "Learning…" : a.learned ? "Re-learn" : "Learn pulpit";
+	text(
+		"#anchorProfileHint",
+		s.profile
+			? `Each profile keeps its own pulpit. Changes here save straight into “${s.profile}”.`
+			: "Each profile keeps its own pulpit. Load or save a profile to give it its own anchor.",
+	);
+	if (anchorWasLearning && !a.learning) {
+		if (a.error) toast(`Couldn't learn the pulpit: ${a.error}`, "red");
+		else toast(`Pulpit learned${s.profile ? ` for “${s.profile}”` : ""}`, "green");
+	}
+	anchorWasLearning = a.learning;
 }
 
 // ── Profiles ─────────────────────────────────────────────────

@@ -33,7 +33,7 @@ Returns a snapshot of everything Trackmind is doing. Poll it (the Stream Deck pl
 {
   "ok": true,
   "app": "trackmind",
-  "version": "1.7",
+  "version": "1.8",
   "status": "TRACKING",
   "stream": "live",
   "error": null,
@@ -48,6 +48,9 @@ Returns a snapshot of everything Trackmind is doing. Poll it (the Stream Deck pl
   "manual": false,
   "camera_ip": "192.168.100.88",
   "home_preset": 0,
+  "anchor": { "enabled": true, "learned": true, "preset": 5, "mode": "recall",
+              "range": 4, "hold": 0.25, "state": "held", "offset": null,
+              "learning": false, "error": null },
   "profile": "Sunday AM",
   "profiles": ["Sunday AM", "Wednesday", "Choir"],
   "values": {
@@ -77,6 +80,7 @@ Returns a snapshot of everything Trackmind is doing. Poll it (the Stream Deck pl
 | `manual` | bool | A manual `move` or `zoom` is in progress (a Stream Deck key is being held). |
 | `camera_ip` | string | Camera IP from Trackmind's settings. |
 | `home_preset` | int | Preset used by `home` and by lost-subject recovery. |
+| `anchor` | object | Pulpit anchor for the active profile. `state` is `"off"` (disabled or not tracking), `"free"` (tracking normally), `"snapping"` (recalling the preset or gliding to the pulpit) or `"held"` (holding the pulpit shot). `offset` is how far the camera is from the learned pulpit, in Snap-range steps (`null` when unknown or while holding). `learned` is `false` until **Learn pulpit** has been run for this profile. `mode` is `"recall"` or `"glide"`. `range` (Snap range, compare with `offset`) and `hold` (hold-zone half-width, fraction of the frame) are the profile's settings. `learning`/`error` report the Learn pulpit run. |
 | `profile` | string \| null | Last loaded profile. |
 | `profiles` | string[] | Names of all saved profiles. |
 | `values` | object | Live values you can change with [`adjust`](#post-apiadjust). |
@@ -109,13 +113,14 @@ Every command is a `POST` with a JSON object body (use `{}` when there are no pa
 | `502` | Camera didn't accept the VISCA command |
 | `503` | Trackmind's UI thread was busy for >3 s (rare; retry) |
 
-### Toggles: `tracking`, `lock`, `autozoom`, `motion-sync`
+### Toggles: `tracking`, `lock`, `autozoom`, `motion-sync`, `anchor`
 
 ```http
 POST /api/tracking      {"state": "toggle"}
 POST /api/lock          {"state": "on"}
 POST /api/autozoom      {"state": "off"}
 POST /api/motion-sync   {"state": "toggle"}
+POST /api/anchor        {"state": "toggle"}
 ```
 
 | Param | Values | Default |
@@ -128,6 +133,7 @@ These commands work exactly like the buttons in Trackmind's main window:
 - **tracking** returns `409` until the video stream is live.
 - **lock** `"on"` returns `409` while tracking is off. **lock** `"off"` always succeeds.
 - **autozoom** and **motion-sync** are saved to Trackmind's settings. Motion Sync is pushed to the camera immediately.
+- **anchor** turns the pulpit anchor on or off and saves that into the active profile. `"on"` returns `409` if the pulpit hasn't been learned for this profile yet (that's done in the app's Settings → Pulpit).
 
 ### `POST /api/preset`
 
@@ -238,4 +244,4 @@ Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8742/api/lock `
 
 ## Versioning
 
-The API was added in Trackmind **v1.7**. New fields and commands may be added in later versions, but existing ones won't change meaning. Clients should ignore fields they don't recognise.
+The API was added in Trackmind **v1.7**. New fields and commands may be added in later versions, but existing ones won't change meaning. Clients should ignore fields they don't recognise. The `anchor` command and status block were added in **v1.8**.

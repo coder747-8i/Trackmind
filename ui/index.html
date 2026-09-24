@@ -34,6 +34,7 @@
 		<symbol id="i-trash" viewBox="0 0 24 24"><path d="M4.5 7h15M10 7V4.5h4V7M6.5 7l1 13h9l1-13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 		<symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
 		<symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+		<symbol id="i-pulpit" viewBox="0 0 24 24"><path d="M4.5 9.5L19.5 7v3.2L4.5 12.7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M12 12v8M8 20.5h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="4" r="1.6" fill="currentColor"/></symbol>
 		<symbol id="i-sparkle" viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM18.5 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z" fill="currentColor"/></symbol>
 	</defs>
 </svg>
@@ -47,9 +48,13 @@
 		<div class="overlay" id="overlay" aria-hidden="true">
 			<div class="crosshair"></div>
 			<div class="deadzone" id="deadzone"></div>
+			<div class="holdzone" id="holdzone"><span>Hold zone</span></div>
 			<div class="reticle" id="reticle">
 				<i></i><i></i><i></i><i></i>
 				<span class="reticle-tag" id="reticleTag">Subject</span>
+			</div>
+			<div class="hold-chip glass glass--clear" id="holdChip" data-glass data-refract="18" data-bezel="10" hidden>
+				<svg><use href="#i-pulpit" /></svg><span id="holdChipText">Holding on pulpit</span>
 			</div>
 			<div class="zoom-chip glass glass--clear" id="zoomChip" data-glass data-refract="18" data-bezel="10" hidden>
 				<svg><use href="#i-zoom" /></svg><span id="zoomChipText">Zooming in</span>
@@ -159,6 +164,7 @@
 		<button data-section="profiles"><svg><use href="#i-layers" /></svg>Profiles</button>
 		<button data-section="tracking"><svg><use href="#i-track" /></svg>Tracking</button>
 		<button data-section="zoom"><svg><use href="#i-zoom" /></svg>Zoom</button>
+		<button data-section="pulpit"><svg><use href="#i-pulpit" /></svg>Pulpit</button>
 		<button data-section="advanced"><svg><use href="#i-bolt" /></svg>Advanced</button>
 		<button data-section="streamdeck"><svg><use href="#i-deck" /></svg>Stream Deck</button>
 		<button data-section="about"><svg><use href="#i-sparkle" /></svg>About</button>
@@ -246,6 +252,39 @@
 			</div>
 		</section>
 
+		<!-- Pulpit anchor -->
+		<section class="group" id="sec-pulpit">
+			<h3 class="eyebrow">Pulpit anchor</h3>
+			<div class="card" data-tone="amber">
+				<div class="row"><span>Pulpit anchor <small class="hint">snap to the pulpit preset when the speaker settles there</small></span>
+					<input type="checkbox" class="switch" data-setting="anchor_enabled" /></div>
+				<div class="row"><span>Pulpit preset</span>
+					<div class="stepper" data-setting="anchor_preset" data-min="0" data-max="89"><button data-step="-1">−</button><input type="number" /><button data-step="1">+</button></div>
+				</div>
+				<div class="row"><span>Position <small class="hint" id="anchorStatus">Not learned yet</small></span>
+					<button class="btn btn--sm" data-action="anchor-learn" id="anchorLearn"><svg><use href="#i-pulpit" /></svg>Learn pulpit</button>
+				</div>
+			</div>
+			<h3 class="eyebrow sub">Behaviour</h3>
+			<div class="card" data-tone="amber">
+				<div class="row"><span>Snap style <small class="hint">recall jumps to the preset · glide pans there slowly</small></span>
+					<div class="seg" data-setting="anchor_mode" role="radiogroup">
+						<button data-value="recall">Recall preset</button>
+						<button data-value="glide">Glide</button>
+					</div>
+				</div>
+				<div class="row col" id="anchorGlideRow"><span>Glide speed <small class="hint">1 barely creeping · 24 fast · keeps the current zoom</small></span>
+					<div class="slider-row"><input class="slider" type="range" min="1" max="24" step="1" data-setting="anchor_glide" /><output class="value num"></output></div></div>
+				<div class="row col"><span>Snap range <small class="hint">how close the camera must settle to the pulpit · compare with the live distance above</small></span>
+					<div class="slider-row"><input class="slider" type="range" min="1" max="10" step="1" data-setting="anchor_range" /><output class="value num"></output></div></div>
+				<div class="row col"><span>Settle time <small class="hint">how long the camera must sit still before snapping</small></span>
+					<div class="slider-row"><input class="slider" type="range" min="0.3" max="4" step="0.1" data-setting="anchor_dwell" data-fixed="1" data-suffix=" s" /><output class="value num"></output></div></div>
+				<div class="row col"><span>Hold zone <small class="hint">how far the speaker can move before tracking resumes</small></span>
+					<div class="slider-row"><input class="slider" type="range" min="10" max="45" step="1" data-setting="anchor_hold" data-scale="100" data-suffix="%" /><output class="value num"></output></div></div>
+			</div>
+			<p class="hint pad" id="anchorProfileHint">Each profile keeps its own pulpit. Changes here save straight into the active profile.</p>
+		</section>
+
 		<!-- Advanced -->
 		<section class="group" id="sec-advanced">
 			<h3 class="eyebrow">Advanced</h3>
@@ -264,6 +303,7 @@
 					</div>
 				</div>
 				<div class="row"><span>Tracking overlay</span><input type="checkbox" class="switch" id="overlayToggle" checked /></div>
+				<div class="row"><span>Pulpit hold zone <small class="hint">outline the hold zone while the pulpit shot is held</small></span><input type="checkbox" class="switch" id="holdzoneToggle" checked /></div>
 			</div>
 		</section>
 

@@ -162,6 +162,33 @@ body[data-tracking="true"] .deadzone { opacity: 1; }
 	backdrop-filter: blur(10px);
 }
 
+/* Pulpit hold zone: full-height band the speaker can roam while the shot is held */
+.holdzone {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	border-inline: 1.5px dashed rgba(var(--amber-rgb), 0.55);
+	background: linear-gradient(90deg, rgba(var(--amber-rgb), 0.07), transparent 18%, transparent 82%, rgba(var(--amber-rgb), 0.07));
+	opacity: 0;
+	transition: opacity 0.4s var(--ease), left 0.3s var(--ease), width 0.3s var(--ease);
+	pointer-events: none;
+}
+.holdzone span {
+	position: absolute;
+	left: 10px;
+	top: 50%;
+	transform: translateY(-50%);
+	font-size: 10.5px;
+	font-weight: 700;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+	color: rgba(var(--amber-rgb), 0.85);
+	text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+.overlay.holding .holdzone { opacity: 1; }
+.overlay.holding .deadzone { opacity: 0; }
+body.no-holdzone .holdzone { display: none; }
+
 .zoom-chip {
 	position: absolute;
 	left: 50%;
@@ -178,6 +205,24 @@ body[data-tracking="true"] .deadzone { opacity: 1; }
 	color: #cfe6ff;
 }
 .zoom-chip svg { width: 15px; height: 15px; color: var(--blue); }
+
+/* Pulpit anchor is holding the preset shot */
+.hold-chip {
+	position: absolute;
+	left: 50%;
+	top: 18px;
+	transform: translateX(-50%);
+	display: inline-flex;
+	align-items: center;
+	gap: 7px;
+	height: 30px;
+	padding: 0 13px;
+	border-radius: var(--r-capsule);
+	font-size: 12px;
+	font-weight: 600;
+	color: #ffe7c2;
+}
+.hold-chip svg { width: 15px; height: 15px; color: var(--amber); }
 
 /* ── Signal card ───────────────────────────────────────────── */
 

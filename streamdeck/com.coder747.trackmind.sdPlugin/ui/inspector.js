@@ -14,6 +14,7 @@
 		lock: { name: "Lock Subject", accent: "amber" },
 		autozoom: { name: "Auto-Zoom", accent: "blue" },
 		motionsync: { name: "Motion Sync", accent: "blue" },
+		anchor: { name: "Pulpit Anchor", accent: "amber" },
 		preset: { name: "Recall Preset", accent: "red" },
 		home: { name: "Home Preset", accent: "red" },
 		profile: { name: "Load Profile", accent: "blue" },

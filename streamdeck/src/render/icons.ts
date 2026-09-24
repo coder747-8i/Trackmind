@@ -32,6 +32,10 @@ export const icons = {
 		stroke("M12 4.5L14.5 7 12 9.5M12 9.5l2.5 2.5-2.5 2.5M12 14.5l2.5 2.5-2.5 2.5", ink) +
 		stroke("M19.5 3.5v17", accent, 2.5),
 
+	/** Lectern with the speaker's head above it — same as the app's i-pulpit. */
+	pulpit: (ink, accent) =>
+		stroke("M4.5 9.5L19.5 7v3.2L4.5 12.7z", ink) + stroke("M12 12v8M8 20.5h8", ink) + `<circle cx="12" cy="4" r="1.8" fill="${accent}"/>`,
+
 	home: (ink, accent) =>
 		stroke("M3.5 11L12 4l8.5 7M6 9.5V20h12V9.5", ink) + `<rect x="10" y="14" width="4" height="6" rx="1" fill="${accent}"/>`,
 

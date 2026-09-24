@@ -6,7 +6,7 @@ Control Trackmind's PTZ auto-tracking from an Elgato Stream Deck. Keys show live
 - **Amber:** locked or searching.
 - **Red:** a preset that's on air.
 
-Every key is a pane of real liquid glass. The plugin renders each key itself, with the same refraction optics as the Trackmind app, so the glass genuinely bends the light behind it.
+Every key is a full-bleed pane of real liquid glass. The plugin renders each key itself, with the same refraction optics as the Trackmind app, so the glass genuinely bends the light behind it.
 
 <p align="center">
   <img src="../docs/images/streamdeck-keys.png" width="720" alt="Trackmind keys: tracking, lock, auto-zoom, on-air preset, profiles, PTZ, status and the Stream Deck + dial">
@@ -25,6 +25,7 @@ Every key is a pane of real liquid glass. The plugin renders each key itself, wi
 | **Zoom (Hold)** | Zooms in / out while held, at speed 0–7 | Direction and speed |
 | **Load Profile** | Load a saved Trackmind profile | Profile name. Lights up while that profile is active |
 | **Motion Sync** | Toggle PTZOptics Motion Sync | On / off |
+| **Pulpit Anchor** | Toggle / on / off the pulpit anchor for the active profile | Off / not learned / armed / in range / holding. Lights amber while on, with a green corner light while the pulpit shot is held |
 | **Status** | Re-check the connection | Live tally: tracking / paused / connecting / no stream |
 | **Tracking Dial** *(Stream Deck +)* | Twist: fine-tune vertical offset, smoothing, zoom target or zoom speed live. Push: tracking on/off. Tap the strip: lock | Live value bar and status |
 
@@ -36,7 +37,7 @@ Multi-actions are supported. A good pattern for services is a **"Sermon"** multi
 
 ## Requirements
 
-- **Trackmind v1.7 or newer**, running on the same PC as the Stream Deck software
+- **Trackmind v1.7 or newer**, running on the same PC as the Stream Deck software (the Pulpit Anchor key needs v1.8 or newer)
 - **Stream Deck software 7.1 or newer** (Windows 10+ or macOS 12+)
 - Any Stream Deck model. The Tracking Dial needs a Stream Deck +.
 
@@ -65,7 +66,7 @@ Multi-actions are supported. A good pattern for services is a **"Sermon"** multi
 ### 3. Add keys
 
 1. Drag any Trackmind action (e.g. **Tracking**) onto a key.
-2. Click the key to open its settings panel. The header tally should show **TRACKING / PAUSED** and **Connected · v1.7** under *Connection*.
+2. Click the key to open its settings panel. The header tally should show **TRACKING / PAUSED** and **Connected · v1.8** under *Connection*.
 3. If it says **Trackmind isn't running**:
    - Check that Trackmind is open and the Control API is enabled (step 1).
    - If you changed Trackmind's port, open **Connection** in any key's settings, enter the same **Port**, then click **Test connection**. The connection setting is shared by every Trackmind key, so you only set it once.

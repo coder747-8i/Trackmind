@@ -11,6 +11,19 @@ export type Values = {
 	zoom_speed: number;
 };
 
+/** Pulpit anchor — see Controller.anchor_view in autotrack.py. */
+export type Anchor = {
+	enabled: boolean;
+	learned: boolean;
+	preset: number;
+	state: "off" | "free" | "snapping" | "held";
+	mode: "recall" | "glide";
+	offset: number | null;
+	range: number;
+	learning: boolean;
+	error: string | null;
+};
+
 /** GET /api/status — see App.api_status in autotrack.py. */
 export type TrackmindStatus = {
 	ok: boolean;
@@ -28,6 +41,8 @@ export type TrackmindStatus = {
 	manual: boolean;
 	camera_ip: string;
 	home_preset: number;
+	/** Missing on Trackmind older than v1.8. */
+	anchor?: Anchor;
 	profile: string | null;
 	profiles: string[];
 	values: Values;

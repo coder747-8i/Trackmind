@@ -10,7 +10,7 @@ MP_ROOT  = os.path.dirname(_mp.__file__)
 CV2_ROOT = os.path.dirname(_cv2.__file__)
 
 datas = [
-    ('trackmind_icon.ico', '.'),
+    ('logos/trackmind_icon.ico', '.'),
     ('version.txt', '.'),
     ('ui', 'ui'),   # the HTML interface (served locally, shown via WebView2)
     (os.path.join(MP_ROOT,  'modules'),          'mediapipe/modules'),
@@ -69,5 +69,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['trackmind_icon.ico'],
+    icon=['logos/trackmind_icon.ico'],
 )

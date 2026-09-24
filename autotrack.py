@@ -93,6 +93,21 @@ class Settings:
         self.track_focus  = 'upper'
         self.track_offset = 2
 
+        # Pulpit anchor: when the camera settles near a fixed spot (the pulpit),
+        # snap to that spot's preset and hold the shot until the speaker walks
+        # away. Stored per profile, so it can be on for "Sunday AM" and off
+        # everywhere else. anchor_pan/tilt are the camera's own absolute
+        # position for the preset, learned with the "Learn pulpit" button.
+        self.anchor_enabled = False
+        self.anchor_preset  = 5
+        self.anchor_range   = 4      # 1..10 — how near the camera must settle
+        self.anchor_dwell   = 1.0    # s the camera must sit still before snapping
+        self.anchor_hold    = 0.25   # half-width of the hold zone (frame fraction)
+        self.anchor_mode    = "recall"   # "recall" the preset, or "glide" there slowly
+        self.anchor_glide   = 6      # glide pan/tilt speed, 1..24
+        self.anchor_pan     = None
+        self.anchor_tilt    = None
+
         # Local control API (used by the Stream Deck plugin). App-wide, not
         # per-profile — loading a profile never changes these.
         self.api_enabled  = True
@@ -141,6 +156,15 @@ class Settings:
             "latency_comp": self.latency_comp,
             "lost_timeout": self.lost_timeout,
             "track_offset": self.track_offset,
+            "anchor_enabled": self.anchor_enabled,
+            "anchor_preset":  self.anchor_preset,
+            "anchor_range":   self.anchor_range,
+            "anchor_dwell":   self.anchor_dwell,
+            "anchor_hold":    self.anchor_hold,
+            "anchor_mode":    self.anchor_mode,
+            "anchor_glide":   self.anchor_glide,
+            "anchor_pan":     self.anchor_pan,
+            "anchor_tilt":    self.anchor_tilt,
             "api_enabled":  self.api_enabled,
             "api_port":     self.api_port,
         }
@@ -180,6 +204,11 @@ class Settings:
             "motion_sync": self.motion_sync, "motion_smooth": self.motion_smooth,
             "latency_comp": self.latency_comp, "lost_timeout": self.lost_timeout,
             "track_offset": self.track_offset,
+            "anchor_enabled": self.anchor_enabled, "anchor_preset": self.anchor_preset,
+            "anchor_range": self.anchor_range, "anchor_dwell": self.anchor_dwell,
+            "anchor_hold": self.anchor_hold,
+            "anchor_mode": self.anchor_mode, "anchor_glide": self.anchor_glide,
+            "anchor_pan": self.anchor_pan, "anchor_tilt": self.anchor_tilt,
         }
 
 
@@ -216,7 +245,10 @@ class ProfileManager:
     def load_profile(self, name):
         if name not in self.profiles:
             return False
-        data = self.profiles[name]
+        # Settings a profile predates (e.g. the pulpit anchor on a profile saved
+        # before v1.8) fall back to defaults rather than leaking in from
+        # whichever profile was loaded before.
+        data = {**Settings().to_dict(), **self.profiles[name]}
         for key, val in data.items():
             if hasattr(SETTINGS, key):
                 setattr(SETTINGS, key, val)
@@ -225,6 +257,22 @@ class ProfileManager:
         self.current = name
         print(f"[PROFILE] Loaded profile: {name}")
         return True
+
+    ANCHOR_KEYS = ("anchor_enabled", "anchor_preset", "anchor_range", "anchor_dwell",
+                   "anchor_hold", "anchor_mode", "anchor_glide", "anchor_pan", "anchor_tilt")
+
+    def sync_anchor(self):
+        """
+        Copy the live pulpit-anchor settings into the active profile. Each
+        profile keeps its own anchor (Sunday AM's pulpit ≠ Wednesday's), and
+        learning one shouldn't need a separate "save profile" step.
+        """
+        if self.current not in self.profiles:
+            return
+        prof = self.profiles[self.current]
+        for key in self.ANCHOR_KEYS:
+            prof[key] = getattr(SETTINGS, key)
+        self._persist()
 
     def delete_profile(self, name):
         if name in self.profiles:
@@ -420,13 +468,23 @@ class Updater:
             # ourselves promptly so the file unlocks cleanly — the installer
             # also force-closes us as a fallback before copying.
             import ctypes
-            ret = ctypes.windll.shell32.ShellExecuteW(None, "runas", tmp_path, "/S", None, 1)
+            # Own the UAC prompt with our window so it comes up in front of
+            # Trackmind instead of flashing unseen in the taskbar.
+            owner = ctypes.windll.user32.GetForegroundWindow() or None
+            ret = ctypes.windll.shell32.ShellExecuteW(owner, "runas", tmp_path, "/S", None, 1)
             if ret <= 32:
                 reason = self._SHELLEXEC_ERRORS.get(
                     int(ret), f"The installer could not be started (code {ret}).")
                 raise OSError(reason)
+            print("[UPDATE] Installer started — closing so it can replace Trackmind.exe")
             time.sleep(0.8)
             self._on_exit()
+            # The installer waits for us to exit before force-closing us. Make
+            # sure we really do go, even if a stuck thread would keep the
+            # process alive after the window closes.
+            guard = threading.Timer(5.0, lambda: os._exit(0))
+            guard.daemon = True   # a normal exit mustn't wait for it
+            guard.start()
 
         except Exception as e:
             print(f"[UPDATE] Install failed: {e}")
@@ -524,6 +582,67 @@ class VISCAController:
 
     def home(self):
         return self._send(bytes([0x81, 0x01, 0x06, 0x04, 0xFF]))
+
+    def absolute_move(self, pan: int, tilt: int, pan_speed: int, tilt_speed: int):
+        """
+        Drive to an absolute pan/tilt position at the given speeds — a glide,
+        unlike a preset recall, which moves at the camera's preset speed and
+        also changes zoom. VISCA: 8x 01 06 02 VV WW 0Y 0Y 0Y 0Y 0Z 0Z 0Z 0Z FF
+        """
+        nib = lambda v: [((v & 0xFFFF) >> sh) & 0xF for sh in (12, 8, 4, 0)]
+        vv = max(1, min(24, pan_speed))
+        ww = max(1, min(20, tilt_speed))
+        return self._send(bytes([0x81, 0x01, 0x06, 0x02, vv, ww, *nib(pan), *nib(tilt), 0xFF]))
+
+    def query_pan_tilt(self, timeout=0.3):
+        """
+        Absolute pan/tilt position, or None if the camera didn't answer.
+        VISCA Pan-tiltPosInq: 8x 09 06 12 FF → y0 50 0p 0p 0p 0p 0t 0t 0t 0t FF
+        (signed 16-bit, one nibble per byte). Also drains the ACK/completion
+        replies that ordinary commands leave queued on the socket.
+        """
+        with self._lock:
+            if not self._connected and not self.connect():
+                return None
+            s = self._sock
+            try:
+                s.setblocking(False)
+                try:
+                    while True:
+                        if not s.recv(4096):
+                            raise ConnectionError("camera closed the VISCA socket")
+                except (BlockingIOError, InterruptedError):
+                    pass
+                s.settimeout(timeout)
+                s.sendall(bytes([0x81, 0x09, 0x06, 0x12, 0xFF]))
+                buf = b""
+                deadline = time.monotonic() + timeout
+                while time.monotonic() < deadline:
+                    s.settimeout(max(0.01, deadline - time.monotonic()))
+                    chunk = s.recv(256)
+                    if not chunk:
+                        raise ConnectionError("camera closed the VISCA socket")
+                    buf += chunk
+                    while b"\xff" in buf:
+                        msg, buf = buf.split(b"\xff", 1)
+                        if len(msg) == 10 and msg[1] == 0x50:
+                            n = lambda b: ((b[0] & 0xF) << 12) | ((b[1] & 0xF) << 8) | ((b[2] & 0xF) << 4) | (b[3] & 0xF)
+                            signed = lambda v: v - 0x10000 if v & 0x8000 else v
+                            return signed(n(msg[2:6])), signed(n(msg[6:10]))
+                return None
+            except socket.timeout:
+                return None
+            except OSError as e:
+                print(f"[VISCA] Position query failed: {e}")
+                self._connected = False
+                try: s.close()
+                except Exception: pass
+                return None
+            finally:
+                try:
+                    if self._connected: s.settimeout(2.0)
+                except Exception:
+                    pass
 
     def set_motion_sync(self, on: bool):
         """
@@ -711,6 +830,84 @@ class AutoTracker:
         self._pan_cmd      = 0.0
         self._tilt_cmd     = 0.0
         self._last_motion_t = time.monotonic()
+        # Pulpit anchor
+        self.cam_pos        = None     # (pan, tilt, t) from the position poller
+        self.anchor_state   = "free"   # free → snapping → held → free
+        self._anchor_t      = 0.0      # when the current state began
+        self._still_since   = None     # camera idle near the pulpit since…
+        self._outside_since = None     # subject outside the hold zone since…
+        self._anchor_cool   = 0.0      # no re-snap before this time
+        self._anchor_mode   = "recall" # how the current snap is moving
+
+    ANCHOR_UNITS  = 16     # camera position units per "Snap range" step (~1° on PTZOptics)
+    ANCHOR_ARRIVE = 3      # units — close enough to call the snap finished
+    ANCHOR_MIN    = {"recall": 1.2, "glide": 0.5}   # s before arrival can count (recall also zooms)
+    ANCHOR_MAX    = {"recall": 3.0, "glide": 10.0}  # s — hold anyway if the camera never reports arrival
+    ANCHOR_LEAVE  = 0.4    # s the subject must stay outside the hold zone to release
+
+    def anchor_offset(self):
+        """How far the camera is from the learned pulpit, in Snap-range steps."""
+        s, pos = SETTINGS, self.cam_pos
+        if s.anchor_pan is None or not pos or time.monotonic() - pos[2] > 1.0:
+            return None
+        return max(abs(pos[0] - s.anchor_pan), abs(pos[1] - s.anchor_tilt)) / self.ANCHOR_UNITS
+
+    def _anchor(self, now, cx):
+        """Advance the pulpit-anchor state. True = hold the camera still this frame."""
+        s = SETTINGS
+        if not s.anchor_enabled or s.anchor_pan is None:
+            self.anchor_state = "free"
+            return False
+
+        if self.anchor_state == "snapping":
+            mode, elapsed, pos = self._anchor_mode, now - self._anchor_t, self.cam_pos
+            arrived = (pos is not None and pos[2] > self._anchor_t and
+                       max(abs(pos[0] - s.anchor_pan), abs(pos[1] - s.anchor_tilt)) <= self.ANCHOR_ARRIVE)
+            if elapsed < self.ANCHOR_MIN[mode] or (not arrived and elapsed < self.ANCHOR_MAX[mode]):
+                return True
+            self.anchor_state, self._anchor_t = "held", now
+            self._outside_since = None
+            # Velocity from frames where the camera itself was moving is junk
+            self._vx = self._vy = 0.0
+            self._last_cx = self._last_cy = None
+            return True
+
+        if self.anchor_state == "held":
+            if abs(cx - 0.5) <= s.anchor_hold:
+                self._outside_since = None
+                return True
+            self._outside_since = self._outside_since or now
+            if now - self._outside_since < self.ANCHOR_LEAVE:
+                return True
+            print("[ANCHOR] Speaker left the pulpit — tracking resumed")
+            self.anchor_state  = "free"
+            self._anchor_cool  = now + 1.5
+            self._still_since  = None
+            return False
+
+        # free: snap once the camera has come to rest near the pulpit
+        off  = self.anchor_offset()
+        idle = self._prev_pan == 0 and self._prev_tilt == 0 and abs(self._vx) < 0.05
+        if off is None or off > s.anchor_range or not idle or now < self._anchor_cool:
+            self._still_since = None
+            return False
+        self._still_since = self._still_since or now
+        if now - self._still_since < s.anchor_dwell:
+            return False
+        if self._prev_zoom != 0:
+            self.visca.zoom_stop()
+            self._prev_zoom = 0
+        self._anchor_mode = "glide" if s.anchor_mode == "glide" else "recall"
+        if self._anchor_mode == "glide":
+            print(f"[ANCHOR] Settled at the pulpit — gliding to it at speed {s.anchor_glide}")
+            self.visca.absolute_move(s.anchor_pan, s.anchor_tilt, s.anchor_glide, s.anchor_glide)
+        else:
+            print(f"[ANCHOR] Settled at the pulpit — recalling preset {s.anchor_preset}")
+            self.visca.recall_preset(s.anchor_preset)
+        self._pan_cmd = self._tilt_cmd = 0.0
+        self._prev_pan = self._prev_tilt = 0
+        self.anchor_state, self._anchor_t = "snapping", now
+        return True
 
     @staticmethod
     def _approach(current, target, max_delta):
@@ -729,6 +926,12 @@ class AutoTracker:
         self._at_home = False
 
         cx, cy, bbox_w, bbox_h = detection
+
+        if self._anchor(now, cx):
+            # Holding the pulpit shot: the preset owns pan, tilt and zoom
+            self._last_seen     = now
+            self._last_motion_t = now
+            return
 
         # Velocity prediction
         dt = max(0.01, min(0.5, (now - self._last_seen) if self._last_seen else 0.1))
@@ -822,6 +1025,8 @@ class AutoTracker:
             print(f"[TRACKER] Lost — recalling preset {SETTINGS.home_preset}")
             self.visca.recall_preset(SETTINGS.home_preset)
             self._at_home = True
+            self.anchor_state = "free"
+            self._still_since = None
 
     def reset(self):
         self._vx = self._vy = 0.0
@@ -829,6 +1034,8 @@ class AutoTracker:
         self._last_motion_t = time.monotonic()
         self._last_cx = self._last_cy = None
         self._prev_pan = self._prev_tilt = self._prev_zoom = 0
+        self.anchor_state = "free"
+        self._still_since = self._outside_since = None
 
 
 # ─────────────────────────────────────────────────────────────
@@ -855,6 +1062,18 @@ class TrackerThread(threading.Thread):
 
     def stop(self):
         self._stop_event.set()
+
+    def _position_poller(self, visca, tracker):
+        """Keeps tracker.cam_pos fresh while a learned pulpit anchor is armed."""
+        while not self._stop_event.wait(0.25):
+            s = SETTINGS
+            if not (self.tracking and s.anchor_enabled and s.anchor_pan is not None):
+                continue
+            if tracker.anchor_state == "held":
+                continue   # holding: the camera is still, keep the socket quiet
+            pos = visca.query_pan_tilt()
+            if pos:
+                tracker.cam_pos = (pos[0], pos[1], time.monotonic())
 
     def _buffer_reader(self, cap, stop_event):
         """
@@ -901,6 +1120,8 @@ class TrackerThread(threading.Thread):
         self.app.visca    = visca
         self.app.detector = detector
         self.app.tracker  = tracker
+        threading.Thread(target=self._position_poller, args=(visca, tracker),
+                         name="PositionPoller", daemon=True).start()
 
         self.running = True
         self.status  = "PAUSED"
@@ -1028,6 +1249,13 @@ SETTINGS_SCHEMA = {
     "zoom_speed":    _clamp_int(0, 7),
     "latency_comp":  _clamp_float(0.0, 2.0),
     "lost_timeout":  _clamp_float(1.0, 10.0, 1),
+    "anchor_enabled": _as_bool,
+    "anchor_preset":  _clamp_int(0, 89),
+    "anchor_range":   _clamp_int(1, 10),
+    "anchor_dwell":   _clamp_float(0.3, 4.0, 1),
+    "anchor_hold":    _clamp_float(0.10, 0.45),
+    "anchor_mode":    lambda v: "glide" if str(v).strip().lower() == "glide" else "recall",
+    "anchor_glide":   _clamp_int(1, 24),
     "api_enabled":   _as_bool,
     "api_port":      _clamp_int(1024, 65535),
 }
@@ -1035,7 +1263,7 @@ SETTINGS_SCHEMA = {
 # Commands the external Control API (Stream Deck, Companion…) may call.
 # Everything else needs the UI token.
 PUBLIC_COMMANDS = {"tracking", "lock", "autozoom", "motion-sync", "preset",
-                   "home", "profile", "move", "zoom", "adjust"}
+                   "home", "profile", "move", "zoom", "adjust", "anchor"}
 
 
 class Controller:
@@ -1060,6 +1288,7 @@ class Controller:
         self.tracker      = None
         self._thread      = None
         self.lock_active  = False
+        self._learn       = {"busy": False, "error": None}
         self._manual      = {"move": None, "zoom": None, "resume": False}
         self._save_timer  = None
         self._jpeg        = (-1, None)
@@ -1201,6 +1430,8 @@ class Controller:
                 self.set_motion_sync(SETTINGS.motion_sync)
             if "zoom_enabled" in changed:
                 self.set_autozoom(SETTINGS.zoom_enabled)
+            if any(k.startswith("anchor_") for k in changed):
+                PROFILE_MANAGER.sync_anchor()
             if self._stream_url() != before_url:
                 self.restart_stream()
             if changed:
@@ -1236,6 +1467,70 @@ class Controller:
         })
         SETTINGS.save()
         self.start_stream()
+
+    # ── Pulpit anchor ─────────────────────────────────────────
+
+    def learn_anchor(self):
+        """
+        Recall the anchor preset, wait for the camera to stop, and record its
+        absolute pan/tilt as this profile's pulpit. Runs in the background —
+        a preset move takes a few seconds. Returns False if already running.
+        """
+        if self._learn["busy"]:
+            return False
+        self._learn = {"busy": True, "error": None}
+        was_tracking = self.tracking_on
+        self.set_tracking(False)
+        visca = self.visca
+
+        def _run():
+            pos, err = None, None
+            try:
+                if not visca.recall_preset(SETTINGS.anchor_preset):
+                    raise RuntimeError("Camera didn't accept the preset recall")
+                time.sleep(0.8)
+                last, deadline = None, time.monotonic() + 10.0
+                while time.monotonic() < deadline:
+                    cur = visca.query_pan_tilt(timeout=0.5)
+                    if cur and cur == last:
+                        pos = cur
+                        break
+                    last = cur
+                    time.sleep(0.3)
+                if not pos:
+                    raise RuntimeError("Camera didn't report its position — "
+                                       "it may not support VISCA position inquiry")
+            except Exception as e:
+                err = str(e)
+            with self._lock:
+                if pos:
+                    SETTINGS.anchor_pan, SETTINGS.anchor_tilt = pos
+                    PROFILE_MANAGER.sync_anchor()
+                    self.schedule_save(0.1)
+                    print(f"[ANCHOR] Learned preset {SETTINGS.anchor_preset} at pan {pos[0]}, tilt {pos[1]}")
+                else:
+                    print(f"[ANCHOR] Learn failed: {err}")
+                self._learn = {"busy": False, "error": err}
+                if was_tracking:
+                    self.set_tracking(True)
+        threading.Thread(target=_run, name="AnchorLearn", daemon=True).start()
+        return True
+
+    def anchor_view(self, tracking):
+        s, tr = SETTINGS, self.tracker
+        off = tr.anchor_offset() if tr else None
+        return {
+            "enabled":  bool(s.anchor_enabled),
+            "learned":  s.anchor_pan is not None,
+            "preset":   s.anchor_preset,
+            "mode":     s.anchor_mode,
+            "range":    s.anchor_range,
+            "hold":     s.anchor_hold,
+            "state":    (tr.anchor_state if (tracking and tr and s.anchor_enabled) else "off"),
+            "offset":   round(off, 1) if (off is not None and tracking) else None,
+            "learning": self._learn["busy"],
+            "error":    self._learn["error"],
+        }
 
     # ── Manual PTZ (held keys) ────────────────────────────────
 
@@ -1318,6 +1613,7 @@ class Controller:
             "manual":        bool(self._manual["move"] or self._manual["zoom"]),
             "camera_ip":     SETTINGS.camera_ip,
             "home_preset":   SETTINGS.home_preset,
+            "anchor":        self.anchor_view(tracking),
             "profile":       PROFILE_MANAGER.current,
             "profiles":      PROFILE_MANAGER.list_profiles(),
             "values":        {k: spec[2]() for k, spec in self.ADJUSTABLE.items()},
@@ -1402,6 +1698,17 @@ class Controller:
                 return fail(502, "Camera didn't accept the VISCA command")
             return ok(preset=preset)
 
+        if name == "anchor":
+            SETTINGS.anchor_enabled = self._want(body, SETTINGS.anchor_enabled)
+            if SETTINGS.anchor_enabled and SETTINGS.anchor_pan is None:
+                SETTINGS.anchor_enabled = False
+                return fail(409, "Learn the pulpit position in Settings first")
+            if not SETTINGS.anchor_enabled and self.tracker:
+                self.tracker.anchor_state = "free"
+            PROFILE_MANAGER.sync_anchor()
+            self.schedule_save()
+            return ok()
+
         if name == "profile":
             pname = str(body.get("name", ""))
             if not self.load_profile(pname):
@@ -1474,6 +1781,13 @@ class Controller:
 
         if name == "setup":
             self.complete_setup(body)
+            return ok()
+
+        if name == "anchor-learn":
+            if not (self.visca and self._thread and self._thread.running):
+                return fail(409, not_live)
+            if not self.learn_anchor():
+                return fail(409, "Already learning the pulpit position")
             return ok()
 
         if name == "reconnect":

@@ -1,5 +1,33 @@
 # Changelog
 
+## v1.8 — 2026-09-24
+
+### Pulpit anchor
+- **Snap to the pulpit.** When the speaker steps behind the pulpit, the dead zone can leave the camera resting slightly off-centre. Turn on **Settings → Pulpit**, choose the pulpit preset (e.g. 5) and click **Learn pulpit**. Trackmind recalls the preset and asks the camera where it landed. From then on, whenever the camera comes to rest near that spot, Trackmind recalls the preset and holds the shot. Gestures and leaning won't move it. Tracking resumes as soon as the speaker walks out of the hold zone.
+- **Per profile.** Each profile keeps its own anchor (on/off, preset, learned position and tuning), so Sunday AM and Wednesday can use different pulpits, or none. Anchor changes save straight into the active profile. Profiles saved before this version load with the anchor off.
+- **Tuning.** *Snap range* sets how close the camera must be, and Settings shows the live distance while tracking. *Settle time* sets how long it must sit still, so walking past the pulpit won't trigger a snap. *Hold zone* sets how far the speaker can move before tracking takes over again.
+- **Snap style.** *Recall preset* jumps to the preset (zoom included). *Glide* pans to the learned position at an adjustable speed and keeps the current zoom, for a snap that's barely noticeable on air.
+- **On screen.** A **Holding on pulpit** chip shows over the preview while the shot is held, and an amber band outlines the hold zone. You can turn the band off in Settings → Advanced → Pulpit hold zone.
+- **Stream Deck.** New **Pulpit Anchor** key: toggle / on / off, showing off, not learned, armed, in range, or holding.
+- **Control API.** New `anchor` toggle, and an `anchor` block in `/api/status`.
+- Requires a camera that answers the VISCA pan/tilt position inquiry (PTZOptics does).
+
+### Auto-update fixed
+- **Updates install again.** Since v1.4, clicking *Install & restart* closed Trackmind and nothing else happened. The installer closed the running app with `taskkill /T`, which also kills that app's child processes. An installer launched through the admin (UAC) prompt counts as a child of the app that started it, so the installer was killing itself before it copied anything. It now waits up to 6 s for Trackmind to close by itself (saving your settings), then force-closes only Trackmind.
+- **Survives antivirus locks.** The old `Trackmind.exe` is renamed out of the way instead of deleted, which works even while antivirus is scanning it. If the update still can't be applied, the old version is restored and reopened, with a message saying why.
+- **Reopens as you.** After an update, Trackmind now starts as the signed-in user instead of inheriting the installer's admin rights. The same applies to "Launch Trackmind now" at the end of a manual install.
+- **The admin prompt comes to the front** instead of sometimes flashing unseen in the taskbar. Trackmind also always exits after starting the installer, so a stuck background task can't hold up the update.
+- Updating from v1.4–v1.7 uses the new installer, so the fix applies to this update too.
+
+### Stream Deck
+- **Keys fill the whole button.** The glass pane used to sit inset in the key, leaving a visible black border and a smaller picture. It now runs edge to edge, with larger icons and text. Stream Deck + touch-strip segments are full-bleed too, so there are no black gaps along the strip.
+
+### Branding
+- **App icon edges fixed.** The large icon sizes had a half-transparent rim that showed as a white fringe on light backgrounds (Explorer, taskbar, installer). The edge is now fully opaque. The Stream Deck marketplace icon and the in-app icon are fixed too.
+- The generated logo, icon and installer art moved from the repo root to `logos/`.
+
+---
+
 ## v1.7 — 2026-09-23
 
 ### A brand-new Trackmind

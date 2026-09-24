@@ -84,6 +84,28 @@ export class AutoZoomAction extends ToggleAction {
 	}
 }
 
+@action({ UUID: "com.coder747.trackmind.anchor" })
+export class AnchorAction extends ToggleAction {
+	protected readonly command = "anchor";
+
+	protected view(_: ToggleSettings, s: TrackmindStatus | null): View {
+		const a = s?.anchor;
+		const base = { tone: "amber", icon: "pulpit", label: "Pulpit" } as const;
+		if (s && !a) return { key: { ...base, active: false, sub: "Update Trackmind", subInk: "warn" } };
+		if (!a?.enabled) {
+			return { key: { ...base, active: false, sub: a && !a.learned ? "Not learned" : "Off", subInk: a && !a.learned ? "warn" : "dim" } };
+		}
+		if (!a.learned) return { key: { ...base, active: false, sub: "Not learned", subInk: "warn" } };
+		if (a.state === "held") return { key: { ...base, active: true, label: "Pulpit", sub: "Holding", corner: "green" } };
+		if (a.state === "snapping") return { key: { ...base, active: true, sub: a.mode === "glide" ? "Gliding…" : "Snapping…" } };
+		if (a.state === "free") {
+			const near = a.offset !== null && a.offset <= a.range;
+			return { key: { ...base, active: true, sub: near ? "In range" : "Armed", corner: near ? "amber" : undefined } };
+		}
+		return { key: { ...base, active: true, sub: "On · paused", subInk: "dim" } };
+	}
+}
+
 @action({ UUID: "com.coder747.trackmind.motionsync" })
 export class MotionSyncAction extends ToggleAction {
 	protected readonly command = "motion-sync";
