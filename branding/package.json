@@ -1,0 +1,13 @@
+{
+    "name": "trackmind-branding",
+    "private": true,
+    "type": "module",
+    "description": "Generates every Trackmind logo, icon and installer asset from one source.",
+    "scripts": {
+        "build": "node build-brand.mjs"
+    },
+    "devDependencies": {
+        "@resvg/resvg-js": "^2.6.2",
+        "opentype.js": "^1.3.4"
+    }
+}

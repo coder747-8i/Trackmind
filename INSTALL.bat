@@ -1,6 +1,6 @@
 @echo off
 echo ============================================
-echo  PTZ Auto-Tracker - First-Time Setup
+echo  Trackmind - First-Time Setup
 echo ============================================
 echo.
 
@@ -8,7 +8,7 @@ echo.
 python --version >nul 2>&1
 if errorlevel 1 (
     echo ERROR: Python not found.
-    echo Download Python 3.10+ from https://www.python.org/downloads/
+    echo Download Python 3.9-3.11 from https://www.python.org/downloads/
     echo Make sure to check "Add Python to PATH" during install.
     pause
     exit /b 1
@@ -27,8 +27,8 @@ if errorlevel 1 (
 
 echo.
 echo ============================================
-echo  Setup complete! 
-echo  Edit START_TRACKER.bat with your camera IP,
-echo  then double-click it to run.
+echo  Setup complete!
+echo  Double-click START_TRACKER.bat to run Trackmind.
+echo  The first launch walks you through camera setup.
 echo ============================================
 pause

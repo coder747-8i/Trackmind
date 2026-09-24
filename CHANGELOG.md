@@ -1,5 +1,29 @@
 # Changelog
 
+## v1.7 — 2026-09-23
+
+### A brand-new Trackmind
+- **Rebuilt interface.** The live camera now fills the window, and every control floats over the picture as **liquid glass**: real refraction, specular rims, and tally-colored tints, in the vMix language of green = tracking, amber = lock, red = on air. The window is a native WebView2 window. Run with `--browser` to use it in a web browser instead.
+- **Tracking overlay.** A reticle follows the detected subject (green, turning amber when locked), with a dead-zone guide and a "zooming" indicator.
+- **Control dock.** Large Tracking, Lock, Auto-Zoom and Home buttons, with live status under each.
+- **Live tune.** A floating panel for adjusting vertical aim, smoothing and zoom target, or switching profile, mid-service.
+- **Settings sheet.** Camera, Profiles, Tracking, Zoom, Advanced, Stream Deck and About sections. Every change applies and saves immediately; there's no Apply button. You can now also choose the RTSP stream (Main 1080p or Sub 720p).
+- **New setup wizard, update prompts, and connection states.** Covers "connecting", "can't reach the camera" (with Reconnect), and "add your camera". Updates show release notes and live download progress.
+- **Keyboard shortcuts:** `T` tracking, `L` lock, `Z` auto-zoom, `H` home, `U` live tune, `F` full screen, `,` settings.
+- **New logo and app icon.** A tracking frame holding a tally-green subject, whose green dot is also the dot of the "i" in the wordmark. The icon, installer art and README banner are all generated from `branding/`.
+
+### Stream Deck
+- **New plugin.** It covers Tracking, Lock Subject, Recall Preset (glows red while on air), Home Preset, Auto-Zoom, Pan/Tilt and Zoom hold keys, Load Profile, Motion Sync, a live Status tile, and a Stream Deck + **Tracking Dial** for live tuning. Keys are rendered as liquid glass, with the same optics as the app. Install by downloading `Trackmind-StreamDeck-v1.7.streamDeckPlugin` from this release and double-clicking it. See `streamdeck/README.md`.
+
+### Control API
+- **Local JSON HTTP API** on `127.0.0.1:8742`. It drives tracking, lock, presets, profiles, manual PTZ and live values. The Stream Deck plugin uses it, and so can Companion, vMix scripts and anything else that speaks HTTP. Manual moves have a built-in dead-man switch, so they stop by themselves if the controller goes quiet. External clients can never read the camera login or settings. Full reference in `docs/API.md`.
+
+### Under the hood
+- Tkinter and Pillow are gone. The tracking engine is unchanged, and now also serves the interface, the live preview (MJPEG) and state updates (Server-Sent Events) from one local-only server.
+- Loading a profile with a different camera now reconnects the stream automatically.
+
+---
+
 ## v1.6 — 2026-06-21
 
 ### Fixes

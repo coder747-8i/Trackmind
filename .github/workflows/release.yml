@@ -83,6 +83,23 @@ jobs:
           /DAPP_VERSION_4=${{ steps.ver.outputs.version4 }}
           installer.nsi
 
+      - name: Set up Node.js (Stream Deck plugin)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: streamdeck/package-lock.json
+
+      - name: Build Stream Deck plugin
+        shell: bash
+        working-directory: streamdeck
+        run: |
+          npm ci
+          npm run validate
+          npm run pack
+          mv dist/com.coder747.trackmind.streamDeckPlugin \
+             "../Trackmind-StreamDeck-v${{ steps.ver.outputs.version }}.streamDeckPlugin"
+
       - name: Create source archive
         shell: bash
         run: |
@@ -97,4 +114,5 @@ jobs:
           body_path: RELEASE_NOTES.md
           files: |
             Trackmind_Setup_v${{ steps.ver.outputs.version }}.exe
+            Trackmind-StreamDeck-v${{ steps.ver.outputs.version }}.streamDeckPlugin
             Trackmind-v${{ steps.ver.outputs.version }}-source.zip

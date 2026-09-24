@@ -12,6 +12,7 @@ CV2_ROOT = os.path.dirname(_cv2.__file__)
 datas = [
     ('trackmind_icon.ico', '.'),
     ('version.txt', '.'),
+    ('ui', 'ui'),   # the HTML interface (served locally, shown via WebView2)
     (os.path.join(MP_ROOT,  'modules'),          'mediapipe/modules'),
     (os.path.join(MP_ROOT,  'python/solutions'), 'mediapipe/python/solutions'),
     (os.path.join(CV2_ROOT, 'data'),             'cv2/data'),
@@ -20,13 +21,17 @@ binaries = []
 hiddenimports = [
     'mediapipe', 'mediapipe.python', 'mediapipe.python.solutions',
     'mediapipe.python.solutions.pose',
-    'cv2', 'PIL', 'PIL.Image', 'PIL.ImageTk', 'numpy',
+    'cv2', 'numpy', 'webview',
 ]
 
 tmp_ret = collect_all('mediapipe')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
 tmp_ret = collect_all('cv2')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+
+# pywebview + its WebView2 interop DLLs (Microsoft.Web.WebView2.*.dll, pythonnet)
+tmp_ret = collect_all('webview')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
 
@@ -39,7 +44,7 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    excludes=['tkinter'],
     noarchive=False,
     optimize=0,
 )

@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>Trackmind</title>
+	<link rel="icon" href="img/favicon.png" />
+	<link rel="preload" href="fonts/InterVariable.woff2" as="font" type="font/woff2" crossorigin />
+	<link rel="stylesheet" href="css/glass.css" />
+	<link rel="stylesheet" href="css/app.css" />
+</head>
+<body data-stream="offline">
+
+<!-- ═══ Icon sprite ═════════════════════════════════════════ -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+	<defs>
+		<symbol id="i-track" viewBox="0 0 24 24"><path d="M3 8V6a3 3 0 0 1 3-3h2M16 3h2a3 3 0 0 1 3 3v2M21 16v2a3 3 0 0 1-3 3h-2M8 21H6a3 3 0 0 1-3-3v-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="13.5" cy="12" r="3.2" fill="currentColor"/><circle cx="8.6" cy="12" r="1.7" fill="currentColor" opacity=".5"/></symbol>
+		<symbol id="i-lock" viewBox="0 0 24 24"><path d="M8 11V8a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><rect x="5" y="11" width="14" height="10" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="16" r="1.6" fill="currentColor"/></symbol>
+		<symbol id="i-zoom" viewBox="0 0 24 24"><path d="M3 7.5V5.5a2.5 2.5 0 0 1 2.5-2.5h2M16.5 3h2A2.5 2.5 0 0 1 21 5.5v2M21 16.5v2a2.5 2.5 0 0 1-2.5 2.5h-2M7.5 21h-2A2.5 2.5 0 0 1 3 18.5v-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="11" cy="11" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M14 14l3 3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+		<symbol id="i-home" viewBox="0 0 24 24"><path d="M3.5 11L12 4l8.5 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 9.5V20h12V9.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><rect x="10" y="14" width="4" height="6" rx="1" fill="currentColor"/></symbol>
+		<symbol id="i-sync" viewBox="0 0 24 24"><path d="M3 7h11M3 12h11M3 17h11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 4.5L14.5 7 12 9.5M12 9.5l2.5 2.5-2.5 2.5M12 14.5l2.5 2.5-2.5 2.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M19.5 3.5v17" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></symbol>
+		<symbol id="i-gear" viewBox="0 0 24 24"><path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M19.4 13.5a7.6 7.6 0 0 0 0-3l2-1.6-2-3.4-2.4 1a7.7 7.7 0 0 0-2.6-1.5L14 2.5h-4l-.4 2.5A7.7 7.7 0 0 0 7 6.5l-2.4-1-2 3.4 2 1.6a7.6 7.6 0 0 0 0 3l-2 1.6 2 3.4 2.4-1a7.7 7.7 0 0 0 2.6 1.5l.4 2.5h4l.4-2.5a7.7 7.7 0 0 0 2.6-1.5l2.4 1 2-3.4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+		<symbol id="i-tune" viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="15" cy="7" r="2.3" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="9" cy="17" r="2.3" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+		<symbol id="i-expand" viewBox="0 0 24 24"><path d="M4 9V5a1 1 0 0 1 1-1h4M15 4h4a1 1 0 0 1 1 1v4M20 15v4a1 1 0 0 1-1 1h-4M9 20H5a1 1 0 0 1-1-1v-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+		<symbol id="i-camera" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="11" rx="4" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="9.5" r="2.4" fill="currentColor"/><path d="M12 15v3M7.5 20.5h9M9 20.5l1.2-2.5h3.6l1.2 2.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+		<symbol id="i-layers" viewBox="0 0 24 24"><path d="M12 3l9 4.5-9 4.5-9-4.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M3 12l9 4.5 9-4.5M3 16.5L12 21l9-4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+		<symbol id="i-deck" viewBox="0 0 24 24"><rect x="2.5" y="5" width="19" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><rect x="6" y="8.5" width="3" height="3" rx=".8" fill="currentColor"/><rect x="10.5" y="8.5" width="3" height="3" rx=".8" fill="currentColor"/><rect x="15" y="8.5" width="3" height="3" rx=".8" fill="currentColor"/><rect x="6" y="13" width="3" height="3" rx=".8" fill="currentColor" opacity=".5"/><rect x="10.5" y="13" width="3" height="3" rx=".8" fill="currentColor" opacity=".5"/><rect x="15" y="13" width="3" height="3" rx=".8" fill="currentColor" opacity=".5"/></symbol>
+		<symbol id="i-sliders" viewBox="0 0 24 24"><path d="M6 4v16M12 4v16M18 4v16" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity=".45"/><rect x="3.5" y="12" width="5" height="3.2" rx="1.6" fill="currentColor"/><rect x="9.5" y="7" width="5" height="3.2" rx="1.6" fill="currentColor"/><rect x="15.5" y="14" width="5" height="3.2" rx="1.6" fill="currentColor"/></symbol>
+		<symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 2.5L5 13.5h6l-1 8 8-11h-6z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+		<symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v4.5h-4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+		<symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+		<symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" fill="currentColor"/></symbol>
+		<symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+		<symbol id="i-trash" viewBox="0 0 24 24"><path d="M4.5 7h15M10 7V4.5h4V7M6.5 7l1 13h9l1-13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+		<symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+		<symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+		<symbol id="i-sparkle" viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM18.5 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z" fill="currentColor"/></symbol>
+	</defs>
+</svg>
+
+<!-- ═══ Stage: live camera fills the window ═════════════════ -->
+<main class="stage" id="stage">
+	<div class="aurora" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+	<img class="ambient" id="ambient" alt="" aria-hidden="true" />
+	<div class="viewport" id="viewport">
+		<img class="video" id="video" alt="Live camera preview" />
+		<div class="overlay" id="overlay" aria-hidden="true">
+			<div class="crosshair"></div>
+			<div class="deadzone" id="deadzone"></div>
+			<div class="reticle" id="reticle">
+				<i></i><i></i><i></i><i></i>
+				<span class="reticle-tag" id="reticleTag">Subject</span>
+			</div>
+			<div class="zoom-chip glass glass--clear" id="zoomChip" data-glass data-refract="18" data-bezel="10" hidden>
+				<svg><use href="#i-zoom" /></svg><span id="zoomChipText">Zooming in</span>
+			</div>
+		</div>
+	</div>
+
+	<!-- No-signal / connecting card -->
+	<section class="signal glass glass--dense" id="signal" data-glass data-refract="46" data-bezel="26" data-frost="12">
+		<div class="signal-icon" id="signalIcon"><svg><use href="#i-camera" /></svg></div>
+		<h1 id="signalTitle">Connecting to camera</h1>
+		<p class="hint" id="signalText">Opening the RTSP stream — this takes a few seconds.</p>
+		<div class="signal-actions">
+			<button class="btn glass glass--clear" data-glass data-refract="20" data-bezel="12" data-action="open-settings" data-section="camera">
+				<svg><use href="#i-camera" /></svg>Camera settings
+			</button>
+			<button class="btn btn--primary" data-tone="green" data-action="reconnect"><svg><use href="#i-refresh" /></svg>Reconnect</button>
+		</div>
+	</section>
+</main>
+
+<!-- ═══ Top bar ═════════════════════════════════════════════ -->
+<header class="topbar">
+	<div class="brand glass" data-glass data-refract="30" data-bezel="18" data-frost="6">
+		<img class="brand-mark" src="img/mark.svg" alt="" />
+		<img class="brand-word" src="img/wordmark.svg" alt="Trackmind" />
+	</div>
+
+	<div class="status glass" data-glass data-refract="30" data-bezel="18" data-frost="6">
+		<span class="tally" id="tally" data-tone="off">Offline</span>
+		<span class="status-detail" id="statusDetail">Not connected</span>
+	</div>
+
+	<div class="toolbar glass" data-glass data-refract="30" data-bezel="18" data-frost="6">
+		<button class="chip" data-action="open-settings" data-section="camera" data-tip="Camera settings">
+			<svg><use href="#i-camera" /></svg>
+			<span class="num" id="chipCamera">—</span>
+			<span class="chip-sep"></span>
+			<span class="num" id="chipFps">0 fps</span>
+		</button>
+		<button class="btn btn--icon btn--ghost" data-action="toggle-tune" id="tuneBtn" data-tip="Live tune" data-key="U">
+			<svg><use href="#i-sliders" /></svg>
+		</button>
+		<button class="btn btn--icon btn--ghost" data-action="fullscreen" data-tip="Full screen" data-key="F">
+			<svg><use href="#i-expand" /></svg>
+		</button>
+		<button class="btn btn--icon btn--ghost" data-action="open-settings" data-tip="Settings" data-key=",">
+			<svg><use href="#i-gear" /></svg>
+		</button>
+	</div>
+</header>
+
+<!-- ═══ Dock: the controls you use during a service ═════════ -->
+<nav class="dock glass" id="dock" data-glass data-refract="44" data-bezel="26" data-frost="8" aria-label="Tracking controls">
+	<button class="tile" data-tone="green" data-action="tracking" id="tileTracking" data-tip="Auto-tracking" data-key="T">
+		<span class="tile-glyph"><svg><use href="#i-track" /></svg></span>
+		<span class="tile-text"><b>Tracking</b><small id="tileTrackingSub">Off</small></span>
+	</button>
+	<button class="tile" data-tone="amber" data-action="lock" id="tileLock" data-tip="Lock onto the current subject" data-key="L">
+		<span class="tile-glyph"><svg><use href="#i-lock" /></svg></span>
+		<span class="tile-text"><b>Lock</b><small id="tileLockSub">Off</small></span>
+	</button>
+	<button class="tile" data-tone="blue" data-action="autozoom" id="tileZoom" data-tip="Keep the subject filling the frame" data-key="Z">
+		<span class="tile-glyph"><svg><use href="#i-zoom" /></svg></span>
+		<span class="tile-text"><b>Auto-Zoom</b><small id="tileZoomSub">Off</small></span>
+	</button>
+	<span class="dock-sep"></span>
+	<button class="tile tile--compact" data-tone="red" data-action="home" id="tileHome" data-tip="Recall home preset" data-key="H">
+		<span class="tile-glyph"><svg><use href="#i-home" /></svg></span>
+		<span class="tile-text"><b>Home</b><small id="tileHomeSub">Preset 0</small></span>
+	</button>
+</nav>
+
+<!-- ═══ Live tune ═══════════════════════════════════════════ -->
+<aside class="tune glass" id="tune" data-glass data-refract="40" data-bezel="24" data-frost="14" hidden>
+	<header>
+		<span class="eyebrow">Live tune</span>
+		<button class="btn btn--icon btn--sm btn--ghost" data-action="toggle-tune" aria-label="Close"><svg><use href="#i-close" /></svg></button>
+	</header>
+	<label class="tune-row">
+		<span>Profile</span>
+		<select class="field" id="tuneProfile"></select>
+	</label>
+	<div class="tune-row" data-tone="green">
+		<span>Vertical aim <small class="hint">head ↔ feet</small></span>
+		<div class="slider-row"><input class="slider centred" type="range" min="-7" max="7" step="1" data-adjust="track_offset" /><output class="value num"></output></div>
+	</div>
+	<div class="tune-row" data-tone="green">
+		<span>Smoothing <small class="hint">snappy ↔ silky</small></span>
+		<div class="slider-row"><input class="slider" type="range" min="0" max="10" step="1" data-adjust="motion_smooth" /><output class="value num"></output></div>
+	</div>
+	<div class="tune-row" data-tone="blue">
+		<span>Zoom target <small class="hint">wide ↔ tight</small></span>
+		<div class="slider-row"><input class="slider" type="range" min="20" max="90" step="1" data-adjust="zoom_target" data-suffix="%" /><output class="value num"></output></div>
+	</div>
+</aside>
+
+<!-- ═══ Settings sheet ══════════════════════════════════════ -->
+<div class="scrim" id="scrim" data-action="close-settings" hidden></div>
+<aside class="sheet glass glass--dense" id="sheet" aria-label="Settings" hidden>
+	<header class="sheet-head">
+		<h2>Settings</h2>
+		<button class="btn btn--icon btn--ghost" data-action="close-settings" aria-label="Close settings"><svg><use href="#i-close" /></svg></button>
+	</header>
+	<nav class="sheet-nav" id="sheetNav">
+		<button data-section="camera"><svg><use href="#i-camera" /></svg>Camera</button>
+		<button data-section="profiles"><svg><use href="#i-layers" /></svg>Profiles</button>
+		<button data-section="tracking"><svg><use href="#i-track" /></svg>Tracking</button>
+		<button data-section="zoom"><svg><use href="#i-zoom" /></svg>Zoom</button>
+		<button data-section="advanced"><svg><use href="#i-bolt" /></svg>Advanced</button>
+		<button data-section="streamdeck"><svg><use href="#i-deck" /></svg>Stream Deck</button>
+		<button data-section="about"><svg><use href="#i-sparkle" /></svg>About</button>
+	</nav>
+
+	<div class="sheet-body" id="sheetBody">
+		<!-- Camera -->
+		<section class="group" id="sec-camera">
+			<h3 class="eyebrow">Camera</h3>
+			<div class="card">
+				<label class="row"><span>IP address</span><input class="field mono" data-setting="camera_ip" placeholder="192.168.100.88" spellcheck="false" /></label>
+				<label class="row"><span>Username</span><input class="field" data-setting="rtsp_user" placeholder="admin" spellcheck="false" autocomplete="off" /></label>
+				<div class="row"><span>Password</span>
+					<div class="field-wrap">
+						<input class="field" type="password" data-setting="rtsp_pass" placeholder="admin" autocomplete="off" id="passField" />
+						<button class="btn btn--icon btn--sm btn--ghost reveal" data-action="reveal" aria-label="Show password"><svg><use href="#i-eye" /></svg></button>
+					</div>
+				</div>
+				<div class="row"><span>Stream</span>
+					<div class="seg" data-setting="rtsp_stream" role="radiogroup">
+						<button data-value="1">Main · 1080p</button>
+						<button data-value="2">Sub · 720p</button>
+					</div>
+				</div>
+				<div class="row"><span>Home preset <small class="hint">recalled when the subject is lost</small></span>
+					<div class="stepper" data-setting="home_preset" data-min="0" data-max="89"><button data-step="-1">−</button><input type="number" /><button data-step="1">+</button></div>
+				</div>
+			</div>
+			<p class="hint pad">Sub stream (720p) is recommended — lower latency, and the camera still records full quality. VISCA over IP must be enabled on the camera (TCP 5678).</p>
+			<button class="btn glass glass--clear wide" data-action="reconnect"><svg><use href="#i-refresh" /></svg>Reconnect stream</button>
+		</section>
+
+		<!-- Profiles -->
+		<section class="group" id="sec-profiles">
+			<h3 class="eyebrow">Profiles</h3>
+			<div class="card" id="profileList"></div>
+			<div class="card">
+				<div class="row">
+					<input class="field" id="newProfile" placeholder="Save current settings as…" maxlength="40" />
+					<button class="btn btn--primary btn--sm" data-tone="green" data-action="profile-save"><svg><use href="#i-plus" /></svg>Save</button>
+				</div>
+			</div>
+			<p class="hint pad">A profile stores every setting below — great for different rooms, speakers, or camera positions.</p>
+		</section>
+
+		<!-- Tracking -->
+		<section class="group" id="sec-tracking">
+			<h3 class="eyebrow">Tracking</h3>
+			<div class="card" data-tone="green">
+				<div class="row col"><span>Vertical aim <small class="hint">−7 top of head · 0 centre · +7 feet</small></span>
+					<div class="slider-row"><input class="slider centred" type="range" min="-7" max="7" step="1" data-setting="track_offset" /><output class="value num"></output></div></div>
+				<div class="row col"><span>Motion smoothing <small class="hint">0 snappy · 10 silky and cinematic</small></span>
+					<div class="slider-row"><input class="slider" type="range" min="0" max="10" step="1" data-setting="motion_smooth" /><output class="value num"></output></div></div>
+				<div class="row"><span>Motion Sync <small class="hint">pan, tilt & zoom reach presets together</small></span>
+					<input type="checkbox" class="switch" data-setting="motion_sync" /></div>
+			</div>
+			<h3 class="eyebrow sub">Speed</h3>
+			<div class="card" data-tone="green">
+				<div class="row"><span>Pan · slow</span><div class="stepper" data-setting="pan_slow" data-min="1" data-max="24"><button data-step="-1">−</button><input type="number" /><button data-step="1">+</button></div></div>
+				<div class="row"><span>Pan · fast</span><div class="stepper" data-setting="pan_fast" data-min="1" data-max="24"><button data-step="-1">−</button><input type="number" /><button data-step="1">+</button></div></div>
+				<div class="row"><span>Tilt · slow</span><div class="stepper" data-setting="tilt_slow" data-min="1" data-max="24"><button data-step="-1">−</button><input type="number" /><button data-step="1">+</button></div></div>
+				<div class="row"><span>Tilt · fast</span><div class="stepper" data-setting="tilt_fast" data-min="1" data-max="24"><button data-step="-1">−</button><input type="number" /><button data-step="1">+</button></div></div>
+			</div>
+			<h3 class="eyebrow sub">Dead zones</h3>
+			<div class="card" data-tone="green">
+				<div class="row col"><span>Pan <small class="hint">how far the subject can drift before the camera follows</small></span>
+					<div class="slider-row"><input class="slider" type="range" min="0.02" max="0.3" step="0.01" data-setting="pan_dead" data-fixed="2" /><output class="value num"></output></div></div>
+				<div class="row col"><span>Tilt</span>
+					<div class="slider-row"><input class="slider" type="range" min="0.02" max="0.3" step="0.01" data-setting="tilt_dead" data-fixed="2" /><output class="value num"></output></div></div>
+			</div>
+			<p class="hint pad">Camera twitching? Raise the dead zones to 0.20–0.22 or lower the slow speeds.</p>
+		</section>
+
+		<!-- Zoom -->
+		<section class="group" id="sec-zoom">
+			<h3 class="eyebrow">Auto-zoom</h3>
+			<div class="card" data-tone="blue">
+				<div class="row"><span>Auto-zoom</span><input type="checkbox" class="switch" data-setting="zoom_enabled" /></div>
+				<div class="row col"><span>Target fill <small class="hint">how much of the frame height the subject fills</small></span>
+					<div class="slider-row"><input class="slider" type="range" min="20" max="90" step="1" data-setting="zoom_target" data-scale="100" data-suffix="%" /><output class="value num"></output></div></div>
+				<div class="row col"><span>Tolerance <small class="hint">higher = less hunting</small></span>
+					<div class="slider-row"><input class="slider" type="range" min="5" max="40" step="1" data-setting="zoom_dead" data-scale="100" data-suffix="%" /><output class="value num"></output></div></div>
+				<div class="row col"><span>Zoom speed <small class="hint">start at 1 for smooth motion</small></span>
+					<div class="slider-row"><input class="slider" type="range" min="0" max="7" step="1" data-setting="zoom_speed" /><output class="value num"></output></div></div>
+			</div>
+		</section>
+
+		<!-- Advanced -->
+		<section class="group" id="sec-advanced">
+			<h3 class="eyebrow">Advanced</h3>
+			<div class="card" data-tone="amber">
+				<div class="row col"><span>Latency compensation <small class="hint">look-ahead to offset RTSP delay · too high oscillates</small></span>
+					<div class="slider-row"><input class="slider" type="range" min="0" max="2" step="0.05" data-setting="latency_comp" data-fixed="2" data-suffix=" s" /><output class="value num"></output></div></div>
+				<div class="row col"><span>Lost timeout <small class="hint">seconds before returning to the home preset</small></span>
+					<div class="slider-row"><input class="slider" type="range" min="1" max="10" step="0.5" data-setting="lost_timeout" data-fixed="1" data-suffix=" s" /><output class="value num"></output></div></div>
+			</div>
+			<h3 class="eyebrow sub">Appearance</h3>
+			<div class="card" data-tone="blue">
+				<div class="row"><span>Glass <small class="hint">Lite skips refraction on slower PCs</small></span>
+					<div class="seg" id="glassQuality" role="radiogroup">
+						<button data-value="full">Liquid</button>
+						<button data-value="lite">Lite</button>
+					</div>
+				</div>
+				<div class="row"><span>Tracking overlay</span><input type="checkbox" class="switch" id="overlayToggle" checked /></div>
+			</div>
+		</section>
+
+		<!-- Stream Deck -->
+		<section class="group" id="sec-streamdeck">
+			<h3 class="eyebrow">Stream Deck &amp; Control API</h3>
+			<div class="card" data-tone="green">
+				<div class="row"><span>Control API <small class="hint" id="apiStatus">—</small></span><input type="checkbox" class="switch" data-setting="api_enabled" /></div>
+				<label class="row"><span>Port</span><input class="field mono short" type="number" min="1024" max="65535" data-setting="api_port" /></label>
+			</div>
+			<p class="hint pad">Local-only HTTP API on 127.0.0.1 — nothing outside this PC can reach it. The Stream Deck plugin, Bitfocus Companion and vMix scripts use it.</p>
+			<a class="btn glass glass--clear wide" href="https://github.com/coder747-8i/Trackmind/releases/latest" target="_blank" rel="noopener"><svg><use href="#i-download" /></svg>Get the Stream Deck plugin</a>
+		</section>
+
+		<!-- About -->
+		<section class="group" id="sec-about">
+			<h3 class="eyebrow">About</h3>
+			<div class="card about">
+				<img src="img/icon.svg" alt="" class="about-icon" />
+				<div>
+					<img src="img/wordmark.svg" alt="Trackmind" class="about-word" />
+					<p class="hint">Intelligent PTZ auto-tracking · <span class="num" id="aboutVersion">v—</span></p>
+				</div>
+			</div>
+			<div class="card">
+				<div class="row"><span>Updates <small class="hint" id="updateLine">Never checked</small></span>
+					<button class="btn btn--sm" data-action="update-check"><svg><use href="#i-refresh" /></svg>Check now</button></div>
+			</div>
+			<div class="card keys">
+				<div class="row"><span>Tracking</span><kbd>T</kbd></div>
+				<div class="row"><span>Lock</span><kbd>L</kbd></div>
+				<div class="row"><span>Auto-zoom</span><kbd>Z</kbd></div>
+				<div class="row"><span>Home preset</span><kbd>H</kbd></div>
+				<div class="row"><span>Live tune</span><kbd>U</kbd></div>
+				<div class="row"><span>Full screen</span><kbd>F</kbd></div>
+				<div class="row"><span>Settings</span><kbd>,</kbd></div>
+			</div>
+		</section>
+	</div>
+</aside>
+
+<!-- ═══ Dialogs ═════════════════════════════════════════════ -->
+<div class="modal" id="wizard" hidden>
+	<div class="modal-card glass glass--dense" data-glass data-refract="50" data-bezel="30" data-frost="16">
+		<div class="wiz-progress" id="wizDots"></div>
+		<div class="wiz-step" data-step="0">
+			<img src="img/icon.svg" alt="" class="wiz-hero" />
+			<h2>Welcome to <img src="img/wordmark.svg" alt="Trackmind" class="inline-word" /></h2>
+			<p class="hint">Let's connect your PTZOptics camera. It takes about a minute.</p>
+		</div>
+		<div class="wiz-step" data-step="1">
+			<span class="eyebrow">Step 1 of 4</span>
+			<h2>Camera IP address</h2>
+			<p class="hint">Find it in your router or the camera's web page. The factory default is <b>192.168.100.88</b>.</p>
+			<input class="field mono big" id="wizIp" placeholder="192.168.100.88" spellcheck="false" />
+		</div>
+		<div class="wiz-step" data-step="2">
+			<span class="eyebrow">Step 2 of 4</span>
+			<h2>Camera login</h2>
+			<p class="hint">Used for the RTSP video stream. Usually <b>admin / admin</b>.</p>
+			<input class="field big" id="wizUser" placeholder="Username" value="admin" spellcheck="false" />
+			<input class="field big" id="wizPass" type="password" placeholder="Password" value="admin" />
+		</div>
+		<div class="wiz-step" data-step="3">
+			<span class="eyebrow">Step 3 of 4</span>
+			<h2>Home preset</h2>
+			<p class="hint">When the subject is lost, the camera returns here. Use <b>0</b> if you haven't saved presets yet.</p>
+			<div class="stepper big" id="wizPreset" data-min="0" data-max="89"><button data-step="-1">−</button><input type="number" value="0" /><button data-step="1">+</button></div>
+		</div>
+		<div class="wiz-step" data-step="4" data-tone="green">
+			<span class="eyebrow">Step 4 of 4</span>
+			<h2>Sensitivity</h2>
+			<p class="hint">How far the subject can drift before the camera follows. Higher is steadier — <b>0.17</b> is a great start.</p>
+			<div class="slider-row"><input class="slider" type="range" min="0.05" max="0.3" step="0.01" value="0.17" id="wizDead" data-fixed="2" /><output class="value num"></output></div>
+		</div>
+		<footer class="modal-actions">
+			<button class="btn btn--ghost" id="wizBack">Back</button>
+			<button class="btn btn--primary" data-tone="green" id="wizNext">Get started</button>
+		</footer>
+	</div>
+</div>
+
+<div class="modal" id="updateModal" hidden>
+	<div class="modal-card glass glass--dense narrow" data-glass data-refract="50" data-bezel="30" data-frost="16">
+		<div class="update-icon" id="updateIcon"><svg><use href="#i-sparkle" /></svg></div>
+		<h2 id="updateTitle">Update available</h2>
+		<p class="hint" id="updateText"></p>
+		<pre class="notes" id="updateNotes" hidden></pre>
+		<div class="progress" id="updateProgress" hidden><i></i></div>
+		<footer class="modal-actions">
+			<button class="btn btn--ghost" id="updateLater">Later</button>
+			<button class="btn btn--primary" data-tone="green" id="updateGo"><svg><use href="#i-download" /></svg>Install &amp; restart</button>
+		</footer>
+	</div>
+</div>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<div class="tip glass glass--dense" id="tip" hidden></div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

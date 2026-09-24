@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>Trackmind</title>
+	<!-- shared/ is the desktop app's design system, copied in at build time -->
+	<link rel="stylesheet" href="shared/css/glass.css" />
+	<link rel="stylesheet" href="inspector.css" />
+</head>
+<body>
+	<div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
+
+	<main>
+		<!-- ═══ Identity + live tally ═══ -->
+		<header class="glass hero" data-glass data-refract="30" data-bezel="18" data-frost="6">
+			<img class="mark" src="shared/img/mark.svg" alt="" />
+			<div class="hero-text">
+				<img class="word" src="shared/img/wordmark.svg" alt="Trackmind" />
+				<div class="action-name" id="actionName">Stream Deck</div>
+			</div>
+			<span class="tally" id="tally" data-tone="off">Offline</span>
+		</header>
+
+		<section class="glass stats" data-glass data-refract="24" data-bezel="14" data-frost="6">
+			<div class="stat"><span class="eyebrow">Camera</span><span class="stat-value num" id="statCamera">—</span></div>
+			<div class="stat"><span class="eyebrow">Subject</span><span class="stat-value" id="statSubject">—</span></div>
+			<div class="stat"><span class="eyebrow">Profile</span><span class="stat-value" id="statProfile">—</span></div>
+		</section>
+
+		<!-- ═══ Toggle actions ═══ -->
+		<section class="glass card" data-glass data-for="tracking lock autozoom motionsync">
+			<h2 class="eyebrow">Key behaviour</h2>
+			<div class="seg" data-setting="mode" data-default="toggle" role="radiogroup">
+				<button data-value="toggle">Toggle</button>
+				<button data-value="on">Always on</button>
+				<button data-value="off">Always off</button>
+			</div>
+			<p class="hint" data-hint-for="tracking">Toggle flips tracking each press. Use <b>Always on / off</b> in multi-actions so a press always lands in a known state.</p>
+			<p class="hint" data-hint-for="lock">Lock ignores everyone except the person Trackmind is following. Only works while tracking is on.</p>
+			<p class="hint" data-hint-for="autozoom">Keeps the subject filling the frame. Tune target fill and speed with the dial or in Trackmind.</p>
+			<p class="hint" data-hint-for="motionsync">PTZOptics Motion Sync makes pan, tilt and zoom arrive at a preset together — smoother recalls on air.</p>
+		</section>
+
+		<!-- ═══ Preset ═══ -->
+		<section class="glass card" data-glass data-for="preset">
+			<h2 class="eyebrow">Preset</h2>
+			<div class="row">
+				<span>Number</span>
+				<div class="stepper" data-setting="preset" data-min="0" data-max="89" data-default="1">
+					<button data-step="-1" aria-label="Previous preset">−</button><input type="number" inputmode="numeric" /><button data-step="1" aria-label="Next preset">+</button>
+				</div>
+			</div>
+			<label class="row">
+				<span>Label</span>
+				<input class="field" type="text" maxlength="18" placeholder="e.g. Pulpit" data-setting="label" />
+			</label>
+		</section>
+
+		<section class="glass card" data-glass data-for="preset home">
+			<h2 class="eyebrow">When recalled</h2>
+			<div class="seg" data-setting="tracking" data-default="off" role="radiogroup">
+				<button data-value="off">Pause tracking</button>
+				<button data-value="keep">Keep tracking</button>
+			</div>
+			<p class="hint">Pausing holds the shot until you turn tracking back on. The key glows <b class="ink-red">red</b> while its shot is on air.</p>
+			<p class="hint" data-hint-for="home">Uses Trackmind's home preset<span id="homePresetHint"></span>.</p>
+		</section>
+
+		<!-- ═══ Profile ═══ -->
+		<section class="glass card" data-glass data-for="profile">
+			<h2 class="eyebrow">Profile</h2>
+			<select class="field" id="profileSelect" data-setting="profile"></select>
+			<p class="hint">Save profiles in Trackmind → Settings → Profiles. The key lights up while its profile is active.</p>
+		</section>
+
+		<!-- ═══ Manual pan / tilt ═══ -->
+		<section class="glass card" data-glass data-for="ptz">
+			<h2 class="eyebrow">Direction</h2>
+			<div class="dpad" data-setting="direction" data-default="up" role="radiogroup">
+				<button data-value="up-left" aria-label="Up left"><i style="--r: -45deg"></i></button>
+				<button data-value="up" aria-label="Up"><i style="--r: 0deg"></i></button>
+				<button data-value="up-right" aria-label="Up right"><i style="--r: 45deg"></i></button>
+				<button data-value="left" aria-label="Left"><i style="--r: -90deg"></i></button>
+				<span class="dpad-core"><img src="shared/img/mark.svg" alt="" /></span>
+				<button data-value="right" aria-label="Right"><i style="--r: 90deg"></i></button>
+				<button data-value="down-left" aria-label="Down left"><i style="--r: -135deg"></i></button>
+				<button data-value="down" aria-label="Down"><i style="--r: 180deg"></i></button>
+				<button data-value="down-right" aria-label="Down right"><i style="--r: 135deg"></i></button>
+			</div>
+		</section>
+
+		<section class="glass card" data-glass data-for="zoom">
+			<h2 class="eyebrow">Zoom</h2>
+			<div class="seg" data-setting="direction" data-default="in" role="radiogroup">
+				<button data-value="in">Zoom in</button>
+				<button data-value="out">Zoom out</button>
+			</div>
+		</section>
+
+		<section class="glass card" data-glass data-for="ptz zoom">
+			<h2 class="eyebrow">Speed</h2>
+			<div class="slider-row" data-for="ptz">
+				<input class="slider" type="range" min="1" max="24" step="1" data-setting="speed" data-default="6" /><output class="value num"></output>
+			</div>
+			<div class="slider-row" data-for="zoom">
+				<input class="slider" type="range" min="0" max="7" step="1" data-setting="speed" data-default="3" /><output class="value num"></output>
+			</div>
+			<label class="row switch-row">
+				<span>Pause tracking while held<small class="hint">Tracking resumes the moment you let go.</small></span>
+				<input type="checkbox" class="switch" data-setting="pauseTracking" data-default="true" />
+			</label>
+		</section>
+
+		<!-- ═══ Status ═══ -->
+		<section class="glass card" data-glass data-for="status">
+			<h2 class="eyebrow">Show under status</h2>
+			<div class="seg" data-setting="detail" data-default="camera" role="radiogroup">
+				<button data-value="camera">Camera IP</button>
+				<button data-value="profile">Profile</button>
+				<button data-value="version">Version</button>
+			</div>
+			<p class="hint">Green = tracking · amber = paused or searching · red = no stream. Press the key to re-check the connection.</p>
+		</section>
+
+		<!-- ═══ Dial (Stream Deck +) ═══ -->
+		<section class="glass card" data-glass data-for="dial">
+			<h2 class="eyebrow">Dial adjusts</h2>
+			<div class="chips" data-setting="param" data-default="track_offset" role="radiogroup">
+				<button data-value="track_offset"><b>Vertical aim</b><small>head ↔ feet</small></button>
+				<button data-value="motion_smooth"><b>Smoothing</b><small>snappy ↔ silky</small></button>
+				<button data-value="zoom_target"><b>Zoom target</b><small>wide ↔ tight</small></button>
+				<button data-value="zoom_speed"><b>Zoom speed</b><small>motor 0–7</small></button>
+			</div>
+			<div class="row">
+				<span>Step per click</span>
+				<div class="stepper" data-setting="step" data-min="1" data-max="5" data-default="1">
+					<button data-step="-1" aria-label="Smaller step">−</button><input type="number" inputmode="numeric" /><button data-step="1" aria-label="Bigger step">+</button>
+				</div>
+			</div>
+			<p class="hint">Push the dial to toggle tracking. Tap the touch strip to lock onto the subject.</p>
+		</section>
+
+		<!-- ═══ Connection (shared by every key) ═══ -->
+		<details class="glass card connection" id="connection" data-glass>
+			<summary>
+				<h2 class="eyebrow">Connection</h2>
+				<span class="conn-line" id="connLine">Looking for Trackmind…</span>
+				<svg class="chev" viewBox="0 0 12 8" aria-hidden="true"><path d="M1 1.5l5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
+			</summary>
+			<div class="conn-grid">
+				<label for="host">Host</label>
+				<input class="field mono" id="host" type="text" placeholder="127.0.0.1" spellcheck="false" />
+				<label for="port">Port</label>
+				<input class="field mono" id="port" type="number" min="1024" max="65535" placeholder="8742" />
+			</div>
+			<button class="btn btn--primary wide" id="testBtn" type="button"><span>Test connection</span></button>
+			<p class="hint">Trackmind must be running on this PC with <b>Settings → Stream Deck → Control API</b> turned on, and the port must match.</p>
+		</details>
+	</main>
+
+	<script src="shared/liquid-glass.js"></script>
+	<script src="inspector.js"></script>
+</body>
+</html>

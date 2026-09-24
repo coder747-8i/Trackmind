@@ -1,0 +1,231 @@
+{
+	"$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
+	"Name": "Trackmind",
+	"Version": "1.0.0.0",
+	"Author": "coder747-8i",
+	"Description": "Control Trackmind PTZ auto-tracking from your Stream Deck — tracking, lock-on, presets, auto-zoom, manual PTZ and live tuning, with vMix-style tally keys.",
+	"URL": "https://github.com/coder747-8i/Trackmind",
+	"SupportURL": "https://github.com/coder747-8i/Trackmind/issues",
+	"UUID": "com.coder747.trackmind",
+	"Icon": "imgs/plugin/marketplace",
+	"Category": "Trackmind",
+	"CategoryIcon": "imgs/plugin/category-icon",
+	"CodePath": "bin/plugin.js",
+	"SDKVersion": 3,
+	"Software": {
+		"MinimumVersion": "7.1"
+	},
+	"OS": [
+		{
+			"Platform": "windows",
+			"MinimumVersion": "10"
+		},
+		{
+			"Platform": "mac",
+			"MinimumVersion": "12"
+		}
+	],
+	"Nodejs": {
+		"Version": "24",
+		"Debug": "disabled"
+	},
+	"Actions": [
+		{
+			"Name": "Tracking",
+			"UUID": "com.coder747.trackmind.tracking",
+			"Icon": "imgs/actions/tracking/icon",
+			"Tooltip": "Turn auto-tracking on or off.",
+			"PropertyInspectorPath": "ui/inspector.html",
+			"Controllers": [
+				"Keypad"
+			],
+			"SupportedInMultiActions": true,
+			"States": [
+				{
+					"Image": "imgs/actions/tracking/key",
+					"ShowTitle": false
+				}
+			]
+		},
+		{
+			"Name": "Lock Subject",
+			"UUID": "com.coder747.trackmind.lock",
+			"Icon": "imgs/actions/lock/icon",
+			"Tooltip": "Lock onto the current subject and ignore everyone else.",
+			"PropertyInspectorPath": "ui/inspector.html",
+			"Controllers": [
+				"Keypad"
+			],
+			"SupportedInMultiActions": true,
+			"States": [
+				{
+					"Image": "imgs/actions/lock/key",
+					"ShowTitle": false
+				}
+			]
+		},
+		{
+			"Name": "Recall Preset",
+			"UUID": "com.coder747.trackmind.preset",
+			"Icon": "imgs/actions/preset/icon",
+			"Tooltip": "Send the camera to a preset — lights up red while it's on air.",
+			"PropertyInspectorPath": "ui/inspector.html",
+			"Controllers": [
+				"Keypad"
+			],
+			"SupportedInMultiActions": true,
+			"States": [
+				{
+					"Image": "imgs/actions/preset/key",
+					"ShowTitle": false
+				}
+			]
+		},
+		{
+			"Name": "Home Preset",
+			"UUID": "com.coder747.trackmind.home",
+			"Icon": "imgs/actions/home/icon",
+			"Tooltip": "Send the camera to Trackmind's home preset.",
+			"PropertyInspectorPath": "ui/inspector.html",
+			"Controllers": [
+				"Keypad"
+			],
+			"SupportedInMultiActions": true,
+			"States": [
+				{
+					"Image": "imgs/actions/home/key",
+					"ShowTitle": false
+				}
+			]
+		},
+		{
+			"Name": "Auto-Zoom",
+			"UUID": "com.coder747.trackmind.autozoom",
+			"Icon": "imgs/actions/autozoom/icon",
+			"Tooltip": "Keep the subject filling the frame automatically.",
+			"PropertyInspectorPath": "ui/inspector.html",
+			"Controllers": [
+				"Keypad"
+			],
+			"SupportedInMultiActions": true,
+			"States": [
+				{
+					"Image": "imgs/actions/autozoom/key",
+					"ShowTitle": false
+				}
+			]
+		},
+		{
+			"Name": "Pan / Tilt (Hold)",
+			"UUID": "com.coder747.trackmind.ptz",
+			"Icon": "imgs/actions/ptz/icon",
+			"Tooltip": "Move the camera manually while the key is held. Tracking pauses and resumes on release.",
+			"PropertyInspectorPath": "ui/inspector.html",
+			"Controllers": [
+				"Keypad"
+			],
+			"SupportedInMultiActions": false,
+			"States": [
+				{
+					"Image": "imgs/actions/ptz/key",
+					"ShowTitle": false
+				}
+			]
+		},
+		{
+			"Name": "Zoom (Hold)",
+			"UUID": "com.coder747.trackmind.zoom",
+			"Icon": "imgs/actions/zoom/icon",
+			"Tooltip": "Zoom in or out while the key is held.",
+			"PropertyInspectorPath": "ui/inspector.html",
+			"Controllers": [
+				"Keypad"
+			],
+			"SupportedInMultiActions": false,
+			"States": [
+				{
+					"Image": "imgs/actions/zoom/key",
+					"ShowTitle": false
+				}
+			]
+		},
+		{
+			"Name": "Load Profile",
+			"UUID": "com.coder747.trackmind.profile",
+			"Icon": "imgs/actions/profile/icon",
+			"Tooltip": "Switch to a saved Trackmind profile (room, presenter, camera position).",
+			"PropertyInspectorPath": "ui/inspector.html",
+			"Controllers": [
+				"Keypad"
+			],
+			"SupportedInMultiActions": true,
+			"States": [
+				{
+					"Image": "imgs/actions/profile/key",
+					"ShowTitle": false
+				}
+			]
+		},
+		{
+			"Name": "Motion Sync",
+			"UUID": "com.coder747.trackmind.motionsync",
+			"Icon": "imgs/actions/motionsync/icon",
+			"Tooltip": "PTZOptics Motion Sync — pan, tilt and zoom arrive at presets together.",
+			"PropertyInspectorPath": "ui/inspector.html",
+			"Controllers": [
+				"Keypad"
+			],
+			"SupportedInMultiActions": true,
+			"States": [
+				{
+					"Image": "imgs/actions/motionsync/key",
+					"ShowTitle": false
+				}
+			]
+		},
+		{
+			"Name": "Status",
+			"UUID": "com.coder747.trackmind.status",
+			"Icon": "imgs/actions/status/icon",
+			"Tooltip": "Live tally of what Trackmind is doing.",
+			"PropertyInspectorPath": "ui/inspector.html",
+			"Controllers": [
+				"Keypad"
+			],
+			"SupportedInMultiActions": false,
+			"States": [
+				{
+					"Image": "imgs/actions/status/key",
+					"ShowTitle": false
+				}
+			]
+		},
+		{
+			"Name": "Tracking Dial",
+			"UUID": "com.coder747.trackmind.dial",
+			"Icon": "imgs/actions/dial/icon",
+			"Tooltip": "Stream Deck +: twist to fine-tune tracking live, push for tracking, tap for lock.",
+			"PropertyInspectorPath": "ui/inspector.html",
+			"Controllers": [
+				"Encoder"
+			],
+			"SupportedInMultiActions": false,
+			"States": [
+				{
+					"Image": "imgs/actions/dial/key",
+					"ShowTitle": false
+				}
+			],
+			"Encoder": {
+				"layout": "layouts/dial.json",
+				"Icon": "imgs/actions/dial/icon",
+				"StackColor": "#0b7a3c",
+				"TriggerDescription": {
+					"Rotate": "Adjust value",
+					"Push": "Tracking on / off",
+					"Touch": "Lock subject"
+				}
+			}
+		}
+	]
+}

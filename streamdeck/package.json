@@ -1,0 +1,32 @@
+{
+    "name": "trackmind-streamdeck",
+    "version": "1.0.0",
+    "private": true,
+    "description": "Stream Deck plugin for Trackmind — intelligent PTZ auto-tracking.",
+    "type": "module",
+    "scripts": {
+        "build": "rollup -c",
+        "watch": "rollup -c -w --watch.onEnd=\"streamdeck restart com.coder747.trackmind\"",
+        "icons": "node scripts/build-icons.mjs",
+        "validate": "streamdeck validate com.coder747.trackmind.sdPlugin",
+        "pack": "npm run build && streamdeck pack com.coder747.trackmind.sdPlugin --output dist --force"
+    },
+    "devDependencies": {
+        "@elgato/cli": "^1.10.0",
+        "@resvg/resvg-js": "^2.6.2",
+        "@rollup/plugin-commonjs": "^29.0.2",
+        "@rollup/plugin-node-resolve": "^15.2.2",
+        "@rollup/plugin-terser": "^1.0.0",
+        "@rollup/plugin-typescript": "^12.1.0",
+        "@tsconfig/node20": "^20.1.2",
+        "@types/node": "~24.1.0",
+        "rollup": "^4.0.2",
+        "tslib": "^2.6.2",
+        "typescript": "^5.2.2"
+    },
+    "dependencies": {
+        "@elgato/streamdeck": "~2.1.2",
+        "@elgato/utils": "0.6.0",
+        "@resvg/resvg-wasm": "^2.6.2"
+    }
+}
